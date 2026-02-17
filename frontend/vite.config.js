@@ -6,12 +6,11 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "",
+        target: "http://127.0.0.1:5000",
         changeOrigin: true,
       },
-      // ✅ чтобы /uploads/... грузилось с backend
       "/uploads": {
-        target: "",
+        target: "http://127.0.0.1:5000",
         changeOrigin: true,
       },
     },

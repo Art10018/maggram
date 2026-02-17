@@ -1,14 +1,24 @@
-// backend/routes/users.routes.js
 import { Router } from "express";
-import optionalAuth from "../middleware/optionalAuth.middleware.js";
-import { getUserById, getUserPostsById } from "../controllers/users.controller.js";
+import authMiddleware from "../middleware/auth.middleware.js";
+import {
+  me,
+  updateMe,
+  uploadMyAvatar,
+  updateCredentials,
+} from "../controllers/users.controller.js";
 
 const router = Router();
 
-// профиль
-router.get("/:id", getUserById);
+// текущий пользователь
+router.get("/me", authMiddleware, me);
 
-// посты пользователя (с фотками + likedByMe)
-router.get("/:id/posts", optionalAuth, getUserPostsById);
+// обновление профиля (displayName, bio, website, github, location, isPrivate)
+router.patch("/me", authMiddleware, updateMe);
+
+// загрузка аватарки
+router.post("/me/avatar", authMiddleware, uploadMyAvatar);
+
+// смена username/email (и опционально password)
+router.patch("/me/credentials", authMiddleware, updateCredentials);
 
 export default router;
