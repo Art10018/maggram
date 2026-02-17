@@ -3,6 +3,7 @@ import http from "./http";
 /**
  * Пробуем несколько путей, чтобы не ломать проект при разных версиях backend.
  * 404 -> пробуем следующий.
+ * 
  */
 export async function toggleLikeApi(postId) {
   const paths = [
