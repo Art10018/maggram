@@ -1,68 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import http from "../api/http";
+import { useAuth } from "../store/auth.jsx";
 
-const [tab, setTab] = React.useState("forYou"); // forYou | trends | following
 const API_ORIGIN = "";
-
-<div className="mobileOnly" style={{ padding: "14px 14px 6px" }}>
-  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-    {/* avatar вместо плюса */}
-    <button
-      onClick={() => window.location.assign("/profile")} // или navigate("/profile")
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,.14)",
-        background: "rgba(255,255,255,.08)",
-        overflow: "hidden",
-        padding: 0,
-      }}
-      aria-label="Profile"
-      title="Profile"
-    >
-      {/* если у тебя уже есть Avatar компонент — используй его */}
-      <div style={{ width: "100%", height: "100%" }} />
-    </button>
-
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        gap: 6,
-        padding: 6,
-        borderRadius: 18,
-        background: "rgba(255,255,255,.06)",
-        border: "1px solid rgba(255,255,255,.10)",
-        backdropFilter: "blur(10px)",
-      }}
-    >
-      {[
-        ["forYou", "For You"],
-        ["trends", "Trends"],
-        ["following", "Following"],
-      ].map(([k, label]) => (
-        <button
-          key={k}
-          onClick={() => setTab(k)}
-          style={{
-            flex: 1,
-            height: 34,
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,.10)",
-            background: tab === k ? "rgba(255,255,255,.14)" : "transparent",
-            color: "white",
-            fontWeight: 700,
-          }}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  </div>
-</div>
-
 
 // стабильный цвет по username
 function hashColor(str = "") {
@@ -77,7 +18,6 @@ function buildSrc(u) {
   if (typeof u !== "string") return "";
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
   if (u.startsWith("/")) return `${API_ORIGIN}${u}`;
-  // на всякий случай
   return `${API_ORIGIN}/${u}`;
 }
 
@@ -102,7 +42,6 @@ function Avatar({ username, avatarUrl, size = 44 }) {
           display: "block",
         }}
         onError={(e) => {
-          // если картинка битая — показываем fallback
           e.currentTarget.style.display = "none";
         }}
       />
@@ -149,7 +88,7 @@ function Tabs({ tab, setTab }) {
   };
 
   return (
-    <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+    <div className="desktopOnly" style={{ display: "flex", gap: 10, marginBottom: 14 }}>
       <button onClick={() => setTab("forYou")} style={{ ...baseBtn, ...(tab === "forYou" ? activeBtn : {}) }}>
         Для вас
       </button>
@@ -198,13 +137,12 @@ function StatButton({ active = false, onClick, children, title }) {
   );
 }
 
-// относительное время: "6 д назад", "2 ч назад"
+// относительное время
 function timeAgo(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return "";
-  const diffMs = d.getTime() - Date.now(); // отрицательное (в прошлом)
-
+  const diffMs = d.getTime() - Date.now();
   const rtf = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });
 
   const sec = Math.round(diffMs / 1000);
@@ -222,24 +160,14 @@ function timeAgo(dateStr) {
   return rtf.format(yr, "year");
 }
 
-// нормализуем фотки из разных форматов (на всякий случай)
 function extractImages(post) {
-  const raw =
-    post?.images ||
-    post?.media ||
-    post?.attachments ||
-    post?.photos ||
-    [];
-
-  // если вдруг это строка
+  const raw = post?.images || post?.media || post?.attachments || post?.photos || [];
   if (typeof raw === "string") return [raw].map(buildSrc).filter(Boolean);
 
-  // если массив строк
   if (Array.isArray(raw) && raw.length && typeof raw[0] === "string") {
     return raw.map(buildSrc).filter(Boolean);
   }
 
-  // если массив объектов
   if (Array.isArray(raw) && raw.length && typeof raw[0] === "object") {
     return raw
       .map((x) => x?.url || x?.path || x?.src)
@@ -250,12 +178,10 @@ function extractImages(post) {
   return [];
 }
 
-// квадратная группировка как в соцсетях (всегда ровный квадрат)
 function PhotoGrid({ images }) {
   const list = images.slice(0, 8);
   const extra = Math.max(0, images.length - list.length);
   const n = list.length;
-
   if (n === 0) return null;
 
   return (
@@ -276,13 +202,10 @@ function PhotoGrid({ images }) {
                 background: "rgba(255,255,255,0.04)",
               }}
               onError={(e) => {
-                // не ломаем сетку — просто скрываем битую картинку
                 e.currentTarget.style.opacity = "0";
               }}
             />
-            {showMore && (
-              <div className="pgMore">+{extra}</div>
-            )}
+            {showMore && <div className="pgMore">+{extra}</div>}
           </div>
         );
       })}
@@ -301,8 +224,10 @@ export default function Feed() {
   const [commentText, setCommentText] = useState({});
   const [commentLoading, setCommentLoading] = useState({});
   const [commentErr, setCommentErr] = useState({});
+  const [expanded, setExpanded] = useState({});
 
-  const [expanded, setExpanded] = useState({}); // {postId: true}
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const loadPosts = useCallback(async (mode) => {
     setLoading(true);
@@ -331,126 +256,149 @@ export default function Feed() {
   const getCommentsApi = useCallback((postId) => http.get(`/comments/${postId}`), []);
   const createCommentApi = useCallback((postId, payload) => http.post(`/comments/${postId}`, payload), []);
 
-  const onToggleLike = useCallback(
-    async (postId) => {
-      try {
-        const res = await toggleLikeApi(postId);
+  const onToggleLike = useCallback(async (postId) => {
+    try {
+      const res = await toggleLikeApi(postId);
 
-        const liked =
-          typeof res.data?.likedByMe === "boolean"
-            ? res.data.likedByMe
-            : typeof res.data?.liked === "boolean"
-            ? res.data.liked
-            : res.data?.status === "liked"
-            ? true
-            : res.data?.status === "unliked"
-            ? false
-            : null;
+      const liked =
+        typeof res.data?.likedByMe === "boolean"
+          ? res.data.likedByMe
+          : typeof res.data?.liked === "boolean"
+          ? res.data.liked
+          : res.data?.status === "liked"
+          ? true
+          : res.data?.status === "unliked"
+          ? false
+          : null;
 
-        setPosts((prev) =>
-          prev.map((p) => {
-            if (p.id !== postId) return p;
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
 
-            const currentLiked = !!p.likedByMe;
-            const nextLiked = liked === null ? !currentLiked : liked;
+          const currentLiked = !!p.likedByMe;
+          const nextLiked = liked === null ? !currentLiked : liked;
 
-            const currentLikes = p._count?.likes ?? 0;
-            const nextLikes = nextLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+          const currentLikes = p._count?.likes ?? 0;
+          const nextLikes = nextLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
 
-            return {
-              ...p,
-              likedByMe: nextLiked,
-              _count: { ...(p._count || {}), likes: nextLikes },
-            };
-          })
-        );
-      } catch (e) {
-        alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
-      }
-    },
-    [toggleLikeApi]
-  );
+          return { ...p, likedByMe: nextLiked, _count: { ...(p._count || {}), likes: nextLikes } };
+        })
+      );
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, [toggleLikeApi]);
 
-  const onToggleComments = useCallback(
-    async (postId) => {
-      const isOpen = !!openComments[postId];
-      if (isOpen) {
-        setOpenComments((m) => ({ ...m, [postId]: false }));
-        return;
-      }
+  const onToggleComments = useCallback(async (postId) => {
+    const isOpen = !!openComments[postId];
+    if (isOpen) {
+      setOpenComments((m) => ({ ...m, [postId]: false }));
+      return;
+    }
 
-      setOpenComments((m) => ({ ...m, [postId]: true }));
-      if (commentsByPost[postId]) return;
+    setOpenComments((m) => ({ ...m, [postId]: true }));
+    if (commentsByPost[postId]) return;
 
-      setCommentLoading((m) => ({ ...m, [postId]: true }));
-      setCommentErr((m) => ({ ...m, [postId]: "" }));
+    setCommentLoading((m) => ({ ...m, [postId]: true }));
+    setCommentErr((m) => ({ ...m, [postId]: "" }));
 
-      try {
-        const res = await getCommentsApi(postId);
-        const list = Array.isArray(res.data) ? res.data : [];
-        setCommentsByPost((m) => ({ ...m, [postId]: list }));
-      } catch (e) {
-        setCommentErr((m) => ({
-          ...m,
-          [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message,
-        }));
-      } finally {
-        setCommentLoading((m) => ({ ...m, [postId]: false }));
-      }
-    },
-    [openComments, commentsByPost, getCommentsApi]
-  );
+    try {
+      const res = await getCommentsApi(postId);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setCommentsByPost((m) => ({ ...m, [postId]: list }));
+    } catch (e) {
+      setCommentErr((m) => ({
+        ...m,
+        [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message,
+      }));
+    } finally {
+      setCommentLoading((m) => ({ ...m, [postId]: false }));
+    }
+  }, [openComments, commentsByPost, getCommentsApi]);
 
-  const onSendComment = useCallback(
-    async (postId) => {
-      const text = (commentText[postId] || "").trim();
-      if (!text) return;
+  const onSendComment = useCallback(async (postId) => {
+    const text = (commentText[postId] || "").trim();
+    if (!text) return;
 
-      setCommentLoading((m) => ({ ...m, [postId]: true }));
-      setCommentErr((m) => ({ ...m, [postId]: "" }));
+    setCommentLoading((m) => ({ ...m, [postId]: true }));
+    setCommentErr((m) => ({ ...m, [postId]: "" }));
 
-      try {
-        const res = await createCommentApi(postId, { text });
-        const c = res.data;
+    try {
+      const res = await createCommentApi(postId, { text });
+      const c = res.data;
 
-        setCommentsByPost((m) => ({
-          ...m,
-          [postId]: [c, ...(m[postId] || [])],
-        }));
-        setCommentText((m) => ({ ...m, [postId]: "" }));
+      setCommentsByPost((m) => ({ ...m, [postId]: [c, ...(m[postId] || [])] }));
+      setCommentText((m) => ({ ...m, [postId]: "" }));
 
-        setPosts((prev) =>
-          prev.map((p) => {
-            if (p.id !== postId) return p;
-            const cur = p._count?.comments ?? 0;
-            return { ...p, _count: { ...(p._count || {}), comments: cur + 1 } };
-          })
-        );
-      } catch (e) {
-        setCommentErr((m) => ({
-          ...m,
-          [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message,
-        }));
-      } finally {
-        setCommentLoading((m) => ({ ...m, [postId]: false }));
-      }
-    },
-    [commentText, createCommentApi]
-  );
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const cur = p._count?.comments ?? 0;
+          return { ...p, _count: { ...(p._count || {}), comments: cur + 1 } };
+        })
+      );
+    } catch (e) {
+      setCommentErr((m) => ({
+        ...m,
+        [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message,
+      }));
+    } finally {
+      setCommentLoading((m) => ({ ...m, [postId]: false }));
+    }
+  }, [commentText, createCommentApi]);
 
   if (loading) return <div style={{ padding: 16, color: "rgba(255,255,255,0.8)" }}>Loading...</div>;
   if (err) return <div style={{ padding: 16, color: "crimson" }}>{err}</div>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, padding: 18 }}>
-      <Tabs tab={tab} setTab={setTab} />
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      {/* ===== MOBILE HEADER (avatar + tabs) ===== */}
+      <div className="mobileHeader">
+        <button
+          onClick={() => navigate("/profile")}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,.14)",
+            background: "rgba(255,255,255,.08)",
+            overflow: "hidden",
+            padding: 0,
+            display: "grid",
+            placeItems: "center",
+          }}
+          aria-label="Profile"
+          title="Profile"
+        >
+          <Avatar username={user?.username} avatarUrl={user?.avatarUrl} size={38} />
+        </button>
 
-      <div style={{ marginBottom: 10 }}>
-        <h2 style={{ margin: 0, color: "rgba(255,255,255,0.92)" }}>Feed</h2>
+        <div className="mobileTabs">
+          {[
+            ["forYou", "For You"],
+            ["popular", "Trends"],
+            ["following", "Following"],
+          ].map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`mTab ${tab === k ? "active" : ""}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* прижимаем к левой стороне, фикс ширина как на примере */}
-      <div className="feed-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 8 }}>
+      {/* DESKTOP tabs как было */}
+      <div style={{ padding: 18, paddingBottom: 0 }}>
+        <Tabs tab={tab} setTab={setTab} />
+        <div style={{ marginBottom: 10 }}>
+          <h2 style={{ margin: 0, color: "rgba(255,255,255,0.92)" }}>Feed</h2>
+        </div>
+      </div>
+
+      <div className="feed-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 18, paddingTop: 12 }}>
         <div style={{ width: "min(760px, 100%)" }}>
           {posts.length === 0 ? (
             <div style={{ color: "rgba(255,255,255,0.7)" }}>No posts</div>
@@ -483,12 +431,10 @@ export default function Feed() {
                       padding: 14,
                     }}
                   >
-                    {/* header */}
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                       <Avatar username={p.author?.username} avatarUrl={p.author?.avatarUrl} size={44} />
 
                       <div style={{ display: "grid", gap: 2 }}>
-                        {/* ник без @ */}
                         <Link
                           to={`/profile/${p.author?.id || p.authorId || ""}`}
                           style={{
@@ -509,14 +455,12 @@ export default function Feed() {
                       </div>
                     </div>
 
-                    {/* photos (квадрат) */}
                     {imgs.length > 0 ? (
                       <div style={{ marginTop: 12 }}>
                         <PhotoGrid images={imgs} />
                       </div>
                     ) : null}
 
-                    {/* text (укороченный + показать ещё) */}
                     {fullText ? (
                       <div style={{ marginTop: 10 }}>
                         <pre
@@ -550,7 +494,6 @@ export default function Feed() {
                       </div>
                     ) : null}
 
-                    {/* bottom bar: лайки/комменты слева, время справа */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
                       <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
                         <StatButton active={!!p.likedByMe} onClick={() => onToggleLike(p.id)} title="Like">
@@ -569,7 +512,6 @@ export default function Feed() {
                       </div>
                     </div>
 
-                    {/* comments */}
                     {isOpen && (
                       <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                         {commLoading && <div style={{ color: "rgba(255,255,255,0.7)" }}>Loading comments...</div>}
@@ -633,88 +575,112 @@ export default function Feed() {
             </div>
           )}
         </div>
+
+        <style>{`
+          .feed-scroll::-webkit-scrollbar { width: 10px; }
+          .feed-scroll::-webkit-scrollbar-track { background: transparent; }
+          .feed-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+          .feed-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+          .statBtn{
+            all: unset;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255,255,255,0.55);
+            font-weight: 700;
+            user-select: none;
+            line-height: 1;
+            padding: 4px 0;
+            transition: color 120ms ease, transform 120ms ease, opacity 120ms ease;
+          }
+          .statBtn:hover{ color: rgba(255,255,255,0.85); transform: translateY(-1px); }
+          .statBtn:active{ transform: translateY(0px); opacity: 0.9; }
+          .statBtn.active{ color: rgba(170, 120, 255, 0.95); }
+          .statCount{ font-size: 14px; }
+
+          .pg{
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            display: grid;
+            gap: 2px;
+          }
+          .pgCell{ position: relative; overflow: hidden; background: rgba(0,0,0,0.25); }
+          .pgMore{
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: grid; place-items: center;
+            color: white; font-weight: 900; font-size: 22px;
+          }
+
+          .pg-n1{ grid-template-columns: 1fr; grid-template-rows: 1fr; }
+          .pg-n2{ grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+
+          .pg-n3{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr; }
+          .pgCell-3-0{ grid-column: 1; grid-row: 1 / span 2; }
+          .pgCell-3-1{ grid-column: 2; grid-row: 1; }
+          .pgCell-3-2{ grid-column: 2; grid-row: 2; }
+
+          .pg-n4{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
+          .pgCell-4-0, .pgCell-5-0, .pgCell-6-0, .pgCell-7-0, .pgCell-8-0 { grid-column: 1; grid-row: 1 / span 3; }
+          .pgCell-4-1, .pgCell-5-1, .pgCell-6-1, .pgCell-7-1, .pgCell-8-1 { grid-column: 2; grid-row: 1; }
+          .pgCell-4-2, .pgCell-5-2, .pgCell-6-2, .pgCell-7-2, .pgCell-8-2 { grid-column: 2; grid-row: 2; }
+          .pgCell-4-3, .pgCell-5-3, .pgCell-6-3, .pgCell-7-3, .pgCell-8-3 { grid-column: 2; grid-row: 3; }
+
+          .pgCell-5-4, .pgCell-6-4, .pgCell-7-4, .pgCell-8-4,
+          .pgCell-6-5, .pgCell-7-5, .pgCell-8-5,
+          .pgCell-7-6, .pgCell-8-6,
+          .pgCell-8-7 { display:none; }
+
+          /* ===== MOBILE HEADER ===== */
+          .mobileHeader{
+            display:none;
+          }
+          .mobileTabs{
+            flex: 1;
+            display: flex;
+            gap: 6px;
+            padding: 6px;
+            border-radius: 18px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.10);
+            backdrop-filter: blur(10px);
+          }
+          .mTab{
+            flex: 1;
+            height: 34px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,.10);
+            background: transparent;
+            color: white;
+            font-weight: 800;
+            cursor: pointer;
+          }
+          .mTab.active{
+            background: rgba(255,255,255,.14);
+          }
+
+          @media (max-width: 820px){
+            .desktopOnly{ display:none !important; }
+            .mobileHeader{
+              display:flex;
+              gap: 10px;
+              align-items: center;
+              padding: 12px 12px 8px;
+              position: sticky;
+              top: 0;
+              z-index: 20;
+              background: linear-gradient(180deg, rgba(11,11,15,0.82), rgba(11,11,15,0.35));
+              backdrop-filter: blur(10px);
+            }
+          }
+        `}</style>
       </div>
-
-      <style>{`
-        .feed-scroll::-webkit-scrollbar { width: 10px; }
-        .feed-scroll::-webkit-scrollbar-track { background: transparent; }
-        .feed-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
-        .feed-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
-
-        .statBtn{
-          all: unset;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          color: rgba(255,255,255,0.55);
-          font-weight: 700;
-          user-select: none;
-          line-height: 1;
-          padding: 4px 0;
-          transition: color 120ms ease, transform 120ms ease, opacity 120ms ease;
-        }
-        .statBtn:hover{ color: rgba(255,255,255,0.85); transform: translateY(-1px); }
-        .statBtn:active{ transform: translateY(0px); opacity: 0.9; }
-
-        .statBtn.active{
-          color: rgba(170, 120, 255, 0.95);
-        }
-        .statCount{ font-size: 14px; }
-
-        /* ====== PHOTO GRID (всегда квадрат) ====== */
-        .pg{
-          width: 100%;
-          aspect-ratio: 1 / 1;
-          border-radius: 14px;
-          overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          display: grid;
-          gap: 2px;
-        }
-        .pgCell{
-          position: relative;
-          overflow: hidden;
-          background: rgba(0,0,0,0.25);
-        }
-        .pgMore{
-          position: absolute;
-          inset: 0;
-          background: rgba(0,0,0,0.45);
-          display: grid;
-          place-items: center;
-          color: white;
-          font-weight: 900;
-          font-size: 22px;
-        }
-
-        /* 1 фото: целиком */
-        .pg-n1{ grid-template-columns: 1fr; grid-template-rows: 1fr; }
-
-        /* 2 фото: 1 слева (большая), 1 справа (большая) */
-        .pg-n2{ grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
-
-        /* 3 фото: большая слева, 2 справа */
-        .pg-n3{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr; }
-        .pgCell-3-0{ grid-column: 1; grid-row: 1 / span 2; }
-        .pgCell-3-1{ grid-column: 2; grid-row: 1; }
-        .pgCell-3-2{ grid-column: 2; grid-row: 2; }
-
-        /* 4+ фото: слева большая, справа 3 плитки (как твоя схема) */
-        .pg-n4{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
-        .pgCell-4-0, .pgCell-5-0, .pgCell-6-0, .pgCell-7-0, .pgCell-8-0 { grid-column: 1; grid-row: 1 / span 3; }
-        .pgCell-4-1, .pgCell-5-1, .pgCell-6-1, .pgCell-7-1, .pgCell-8-1 { grid-column: 2; grid-row: 1; }
-        .pgCell-4-2, .pgCell-5-2, .pgCell-6-2, .pgCell-7-2, .pgCell-8-2 { grid-column: 2; grid-row: 2; }
-        .pgCell-4-3, .pgCell-5-3, .pgCell-6-3, .pgCell-7-3, .pgCell-8-3 { grid-column: 2; grid-row: 3; }
-
-        /* если картинок больше 4 — остальные “внутри” не показываем (мы режем до 8 в JS),
-           но сетка останется ровной; +N покажем на последней */
-        .pgCell-5-4, .pgCell-6-4, .pgCell-7-4, .pgCell-8-4,
-        .pgCell-6-5, .pgCell-7-5, .pgCell-8-5,
-        .pgCell-7-6, .pgCell-8-6,
-        .pgCell-8-7 { display:none; }
-      `}</style>
     </div>
   );
 }
