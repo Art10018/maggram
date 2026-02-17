@@ -40,3 +40,11 @@
 .read-the-docs {
   color: #888;
 }
+/* Responsive helpers */
+.mobileOnly { display: none; }
+.desktopOnly { display: block; }
+
+@media (max-width: 768px) {
+  .mobileOnly { display: block; }
+  .desktopOnly { display: none; }
+}

@@ -2,7 +2,67 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import http from "../api/http";
 
+const [tab, setTab] = React.useState("forYou"); // forYou | trends | following
 const API_ORIGIN = "";
+
+<div className="mobileOnly" style={{ padding: "14px 14px 6px" }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    {/* avatar вместо плюса */}
+    <button
+      onClick={() => window.location.assign("/profile")} // или navigate("/profile")
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        border: "1px solid rgba(255,255,255,.14)",
+        background: "rgba(255,255,255,.08)",
+        overflow: "hidden",
+        padding: 0,
+      }}
+      aria-label="Profile"
+      title="Profile"
+    >
+      {/* если у тебя уже есть Avatar компонент — используй его */}
+      <div style={{ width: "100%", height: "100%" }} />
+    </button>
+
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        gap: 6,
+        padding: 6,
+        borderRadius: 18,
+        background: "rgba(255,255,255,.06)",
+        border: "1px solid rgba(255,255,255,.10)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      {[
+        ["forYou", "For You"],
+        ["trends", "Trends"],
+        ["following", "Following"],
+      ].map(([k, label]) => (
+        <button
+          key={k}
+          onClick={() => setTab(k)}
+          style={{
+            flex: 1,
+            height: 34,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,.10)",
+            background: tab === k ? "rgba(255,255,255,.14)" : "transparent",
+            color: "white",
+            fontWeight: 700,
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  </div>
+</div>
+
 
 // стабильный цвет по username
 function hashColor(str = "") {
