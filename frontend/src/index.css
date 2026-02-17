@@ -1,0 +1,84 @@
+/* ===== Wave avatar (BIG Yandex-like aura, avatar NOT rotating) ===== */
+.waveAvatar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  isolation: isolate; /* чтобы blur не лез на соседей */
+  background: transparent;
+}
+
+/* БОЛЬШАЯ аура позади (намного больше аватарки) */
+.waveAvatar::before {
+  content: "";
+  position: absolute;
+  inset: -44px; /* <<< ВОТ ТУТ РАЗМЕР ВОЛН (сейчас ОЧЕНЬ большой) */
+  border-radius: 999px;
+
+  background:
+    radial-gradient(60% 60% at 25% 25%, rgba(170, 70, 255, 0.85), transparent 62%),
+    radial-gradient(55% 55% at 75% 30%, rgba(255, 80, 190, 0.65), transparent 62%),
+    radial-gradient(70% 70% at 55% 80%, rgba(90, 200, 255, 0.45), transparent 60%),
+    radial-gradient(65% 65% at 20% 80%, rgba(255, 180, 60, 0.38), transparent 62%);
+
+  filter: blur(22px) saturate(1.35);
+  opacity: 0.85;
+  transform: translateZ(0);
+
+  /* хаотичное движение + перелив оттенка */
+  animation: waveBlobMove 7.5s ease-in-out infinite alternate, waveHue 10s linear infinite;
+  z-index: 0;
+}
+
+/* тонкое “стекло” вокруг авы (НЕ вращается) */
+.waveAvatar::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  z-index: 1;
+
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.35) inset,
+    0 10px 30px rgba(0,0,0,0.45);
+  opacity: 0.9;
+}
+
+/* сама аватарка (фикс), всегда поверх ауры */
+.waveAvatar__inner {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.06);
+  z-index: 2;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
+}
+
+/* hover — чуть сильнее аура */
+.waveAvatar:hover::before {
+  opacity: 1;
+  filter: blur(24px) saturate(1.55);
+}
+
+/* хаотичное движение (НЕ крутится кругом, а “плавает”) */
+@keyframes waveBlobMove {
+  0%   { transform: translate(-6px, 2px) scale(1.03); }
+  25%  { transform: translate(10px, -8px) scale(1.10); }
+  50%  { transform: translate(-12px, 12px) scale(1.06); }
+  75%  { transform: translate(14px, 8px) scale(1.12); }
+  100% { transform: translate(-10px, -12px) scale(1.08); }
+}
+
+/* перелив оттенка всей ауры */
+@keyframes waveHue {
+  0%   { filter: blur(22px) saturate(1.35) hue-rotate(0deg); }
+  100% { filter: blur(22px) saturate(1.35) hue-rotate(360deg); }
+}
