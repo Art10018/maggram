@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+
+  <!-- Background rounded square -->
+  <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#5A2DBF"/>
+
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="512" height="512" fill="black"/>
+      <!-- Visible logo area -->
+      <rect x="96" y="96" width="320" height="320" rx="80" ry="80" fill="white"/>
+      <!-- Diagonal cut -->
+      <polygon fill="black"
+        points="150,370 360,160 392,192 182,402"/>
+      <!-- Small inner notch -->
+      <polygon fill="black"
+        points="270,260 310,220 322,232 282,272"/>
+    </mask>
+  </defs>
+
+  <!-- White logo with cut -->
+  <rect x="0" y="0" width="512" height="512" fill="#FFFFFF" mask="url(#cut)"/>
+
+</svg>
