@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import http from "../api/http";
-import { useAuth } from "../store/auth.jsx";
 
 const API_ORIGIN = "";
 
@@ -14,8 +13,7 @@ function hashColor(str = "") {
 }
 
 function buildSrc(u) {
-  if (!u) return "";
-  if (typeof u !== "string") return "";
+  if (!u || typeof u !== "string") return "";
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
   if (u.startsWith("/")) return `${API_ORIGIN}${u}`;
   return `${API_ORIGIN}/${u}`;
@@ -42,7 +40,7 @@ function Avatar({ username, avatarUrl, size = 44 }) {
           display: "block",
         }}
         onError={(e) => {
-          e.currentTarget.style.display = "none";
+          e.currentTarget.removeAttribute("src");
         }}
       />
     );
@@ -78,7 +76,8 @@ function Tabs({ tab, setTab }) {
     background: "rgba(255,255,255,0.06)",
     color: "rgba(255,255,255,0.7)",
     cursor: "pointer",
-    fontWeight: 700,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
   };
 
   const activeBtn = {
@@ -88,7 +87,7 @@ function Tabs({ tab, setTab }) {
   };
 
   return (
-    <div className="desktopOnly" style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+    <div className="feedTabs" style={{ display: "flex", gap: 10, marginBottom: 14 }}>
       <button onClick={() => setTab("forYou")} style={{ ...baseBtn, ...(tab === "forYou" ? activeBtn : {}) }}>
         Для вас
       </button>
@@ -137,7 +136,6 @@ function StatButton({ active = false, onClick, children, title }) {
   );
 }
 
-// относительное время
 function timeAgo(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
@@ -163,18 +161,10 @@ function timeAgo(dateStr) {
 function extractImages(post) {
   const raw = post?.images || post?.media || post?.attachments || post?.photos || [];
   if (typeof raw === "string") return [raw].map(buildSrc).filter(Boolean);
-
-  if (Array.isArray(raw) && raw.length && typeof raw[0] === "string") {
-    return raw.map(buildSrc).filter(Boolean);
-  }
-
+  if (Array.isArray(raw) && raw.length && typeof raw[0] === "string") return raw.map(buildSrc).filter(Boolean);
   if (Array.isArray(raw) && raw.length && typeof raw[0] === "object") {
-    return raw
-      .map((x) => x?.url || x?.path || x?.src)
-      .map(buildSrc)
-      .filter(Boolean);
+    return raw.map((x) => x?.url || x?.path || x?.src).map(buildSrc).filter(Boolean);
   }
-
   return [];
 }
 
@@ -226,9 +216,6 @@ export default function Feed() {
   const [commentErr, setCommentErr] = useState({});
   const [expanded, setExpanded] = useState({});
 
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
   const loadPosts = useCallback(async (mode) => {
     setLoading(true);
     setErr("");
@@ -259,7 +246,6 @@ export default function Feed() {
   const onToggleLike = useCallback(async (postId) => {
     try {
       const res = await toggleLikeApi(postId);
-
       const liked =
         typeof res.data?.likedByMe === "boolean"
           ? res.data.likedByMe
@@ -274,7 +260,6 @@ export default function Feed() {
       setPosts((prev) =>
         prev.map((p) => {
           if (p.id !== postId) return p;
-
           const currentLiked = !!p.likedByMe;
           const nextLiked = liked === null ? !currentLiked : liked;
 
@@ -307,10 +292,7 @@ export default function Feed() {
       const list = Array.isArray(res.data) ? res.data : [];
       setCommentsByPost((m) => ({ ...m, [postId]: list }));
     } catch (e) {
-      setCommentErr((m) => ({
-        ...m,
-        [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message,
-      }));
+      setCommentErr((m) => ({ ...m, [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message }));
     } finally {
       setCommentLoading((m) => ({ ...m, [postId]: false }));
     }
@@ -338,10 +320,7 @@ export default function Feed() {
         })
       );
     } catch (e) {
-      setCommentErr((m) => ({
-        ...m,
-        [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message,
-      }));
+      setCommentErr((m) => ({ ...m, [postId]: e?.response?.data?.error || e?.response?.data?.message || e.message }));
     } finally {
       setCommentLoading((m) => ({ ...m, [postId]: false }));
     }
@@ -351,55 +330,14 @@ export default function Feed() {
   if (err) return <div style={{ padding: 16, color: "crimson" }}>{err}</div>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      {/* ===== MOBILE HEADER (avatar + tabs) ===== */}
-      <div className="mobileHeader">
-        <button
-          onClick={() => navigate("/profile")}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,.14)",
-            background: "rgba(255,255,255,.08)",
-            overflow: "hidden",
-            padding: 0,
-            display: "grid",
-            placeItems: "center",
-          }}
-          aria-label="Profile"
-          title="Profile"
-        >
-          <Avatar username={user?.username} avatarUrl={user?.avatarUrl} size={38} />
-        </button>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, padding: 18 }}>
+      <Tabs tab={tab} setTab={setTab} />
 
-        <div className="mobileTabs">
-          {[
-            ["forYou", "For You"],
-            ["popular", "Trends"],
-            ["following", "Following"],
-          ].map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setTab(k)}
-              className={`mTab ${tab === k ? "active" : ""}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div style={{ marginBottom: 6 }}>
       </div>
 
-      {/* DESKTOP tabs как было */}
-      <div style={{ padding: 18, paddingBottom: 0 }}>
-        <Tabs tab={tab} setTab={setTab} />
-        <div style={{ marginBottom: 10 }}>
-          <h2 style={{ margin: 0, color: "rgba(255,255,255,0.92)" }}>Feed</h2>
-        </div>
-      </div>
-
-      <div className="feed-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 18, paddingTop: 12 }}>
-        <div style={{ width: "min(760px, 100%)" }}>
+      <div className="feed-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 8 }}>
+        <div className="feedWidth" style={{ width: "min(760px, 100%)" }}>
           {posts.length === 0 ? (
             <div style={{ color: "rgba(255,255,255,0.7)" }}>No posts</div>
           ) : (
@@ -418,7 +356,6 @@ export default function Feed() {
                 const isLong = fullText.length > 220;
                 const isExpanded = !!expanded[p.id];
                 const shownText = isExpanded || !isLong ? fullText : fullText.slice(0, 220).trimEnd() + "…";
-
                 const when = timeAgo(p.createdAt);
 
                 return (
@@ -507,9 +444,7 @@ export default function Feed() {
                         </StatButton>
                       </div>
 
-                      <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: 13 }}>
-                        {when}
-                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: 13 }}>{when}</div>
                     </div>
 
                     {isOpen && (
@@ -559,9 +494,7 @@ export default function Feed() {
                                   <div style={{ fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>
                                     {c.author?.username ?? "unknown"}
                                   </div>
-                                  <div style={{ whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.86)" }}>
-                                    {c.text}
-                                  </div>
+                                  <div style={{ whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.86)" }}>{c.text}</div>
                                 </div>
                               </div>
                             ))}
@@ -575,112 +508,72 @@ export default function Feed() {
             </div>
           )}
         </div>
-
-        <style>{`
-          .feed-scroll::-webkit-scrollbar { width: 10px; }
-          .feed-scroll::-webkit-scrollbar-track { background: transparent; }
-          .feed-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
-          .feed-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
-
-          .statBtn{
-            all: unset;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: rgba(255,255,255,0.55);
-            font-weight: 700;
-            user-select: none;
-            line-height: 1;
-            padding: 4px 0;
-            transition: color 120ms ease, transform 120ms ease, opacity 120ms ease;
-          }
-          .statBtn:hover{ color: rgba(255,255,255,0.85); transform: translateY(-1px); }
-          .statBtn:active{ transform: translateY(0px); opacity: 0.9; }
-          .statBtn.active{ color: rgba(170, 120, 255, 0.95); }
-          .statCount{ font-size: 14px; }
-
-          .pg{
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            border-radius: 14px;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.03);
-            display: grid;
-            gap: 2px;
-          }
-          .pgCell{ position: relative; overflow: hidden; background: rgba(0,0,0,0.25); }
-          .pgMore{
-            position: absolute; inset: 0;
-            background: rgba(0,0,0,0.45);
-            display: grid; place-items: center;
-            color: white; font-weight: 900; font-size: 22px;
-          }
-
-          .pg-n1{ grid-template-columns: 1fr; grid-template-rows: 1fr; }
-          .pg-n2{ grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
-
-          .pg-n3{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr; }
-          .pgCell-3-0{ grid-column: 1; grid-row: 1 / span 2; }
-          .pgCell-3-1{ grid-column: 2; grid-row: 1; }
-          .pgCell-3-2{ grid-column: 2; grid-row: 2; }
-
-          .pg-n4{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
-          .pgCell-4-0, .pgCell-5-0, .pgCell-6-0, .pgCell-7-0, .pgCell-8-0 { grid-column: 1; grid-row: 1 / span 3; }
-          .pgCell-4-1, .pgCell-5-1, .pgCell-6-1, .pgCell-7-1, .pgCell-8-1 { grid-column: 2; grid-row: 1; }
-          .pgCell-4-2, .pgCell-5-2, .pgCell-6-2, .pgCell-7-2, .pgCell-8-2 { grid-column: 2; grid-row: 2; }
-          .pgCell-4-3, .pgCell-5-3, .pgCell-6-3, .pgCell-7-3, .pgCell-8-3 { grid-column: 2; grid-row: 3; }
-
-          .pgCell-5-4, .pgCell-6-4, .pgCell-7-4, .pgCell-8-4,
-          .pgCell-6-5, .pgCell-7-5, .pgCell-8-5,
-          .pgCell-7-6, .pgCell-8-6,
-          .pgCell-8-7 { display:none; }
-
-          /* ===== MOBILE HEADER ===== */
-          .mobileHeader{
-            display:none;
-          }
-          .mobileTabs{
-            flex: 1;
-            display: flex;
-            gap: 6px;
-            padding: 6px;
-            border-radius: 18px;
-            background: rgba(255,255,255,.06);
-            border: 1px solid rgba(255,255,255,.10);
-            backdrop-filter: blur(10px);
-          }
-          .mTab{
-            flex: 1;
-            height: 34px;
-            border-radius: 14px;
-            border: 1px solid rgba(255,255,255,.10);
-            background: transparent;
-            color: white;
-            font-weight: 800;
-            cursor: pointer;
-          }
-          .mTab.active{
-            background: rgba(255,255,255,.14);
-          }
-
-          @media (max-width: 820px){
-            .desktopOnly{ display:none !important; }
-            .mobileHeader{
-              display:flex;
-              gap: 10px;
-              align-items: center;
-              padding: 12px 12px 8px;
-              position: sticky;
-              top: 0;
-              z-index: 20;
-              background: linear-gradient(180deg, rgba(11,11,15,0.82), rgba(11,11,15,0.35));
-              backdrop-filter: blur(10px);
-            }
-          }
-        `}</style>
       </div>
+
+      <style>{`
+        .feed-scroll::-webkit-scrollbar { width: 10px; }
+        .feed-scroll::-webkit-scrollbar-track { background: transparent; }
+        .feed-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+        .feed-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+        .statBtn{
+          all: unset;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: rgba(255,255,255,0.55);
+          font-weight: 700;
+          user-select: none;
+          line-height: 1;
+          padding: 4px 0;
+          transition: color 120ms ease, transform 120ms ease, opacity 120ms ease;
+        }
+        .statBtn:hover{ color: rgba(255,255,255,0.85); transform: translateY(-1px); }
+        .statBtn:active{ transform: translateY(0px); opacity: 0.9; }
+        .statBtn.active{ color: rgba(170, 120, 255, 0.95); }
+        .statCount{ font-size: 14px; }
+
+        .pg{
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          border-radius: 14px;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          display: grid;
+          gap: 2px;
+        }
+        .pgCell{ position: relative; overflow: hidden; background: rgba(0,0,0,0.25); }
+        .pgMore{
+          position: absolute; inset: 0;
+          background: rgba(0,0,0,0.45);
+          display: grid; place-items: center;
+          color: white; font-weight: 900; font-size: 22px;
+        }
+        .pg-n1{ grid-template-columns: 1fr; grid-template-rows: 1fr; }
+        .pg-n2{ grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+        .pg-n3{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr; }
+        .pgCell-3-0{ grid-column: 1; grid-row: 1 / span 2; }
+        .pgCell-3-1{ grid-column: 2; grid-row: 1; }
+        .pgCell-3-2{ grid-column: 2; grid-row: 2; }
+        .pg-n4{ grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
+        .pgCell-4-0, .pgCell-5-0, .pgCell-6-0, .pgCell-7-0, .pgCell-8-0 { grid-column: 1; grid-row: 1 / span 3; }
+        .pgCell-4-1, .pgCell-5-1, .pgCell-6-1, .pgCell-7-1, .pgCell-8-1 { grid-column: 2; grid-row: 1; }
+        .pgCell-4-2, .pgCell-5-2, .pgCell-6-2, .pgCell-7-2, .pgCell-8-2 { grid-column: 2; grid-row: 2; }
+        .pgCell-4-3, .pgCell-5-3, .pgCell-6-3, .pgCell-7-3, .pgCell-8-3 { grid-column: 2; grid-row: 3; }
+        .pgCell-5-4, .pgCell-6-4, .pgCell-7-4, .pgCell-8-4,
+        .pgCell-6-5, .pgCell-7-5, .pgCell-8-5,
+        .pgCell-7-6, .pgCell-8-6,
+        .pgCell-8-7 { display:none; }
+
+        /* ====== мобилка ====== */
+        @media (max-width: 860px){
+          .feedTabs { justify-content: center; gap: 8px; }
+          .feedTabs button { padding: 8px 12px; font-size: 13px; }
+          .feedWidth { width: 100% !important; }
+        }
+      `}</style>
     </div>
   );
 }

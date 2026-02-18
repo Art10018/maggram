@@ -1,9 +1,9 @@
 import Sidebar from "./Sidebar.jsx";
+import BottomNav from "./BottomNav.jsx";
 
 export default function AppShell({ children }) {
   return (
     <div
-      className="appRoot"
       style={{
         height: "100vh",
         overflow: "hidden",
@@ -11,33 +11,24 @@ export default function AppShell({ children }) {
         display: "flex",
       }}
     >
-      {/* Sidebar (desktop), mobile — будет скрыт через CSS */}
-      <div
-        className="sidebarWrap"
-        style={{
-          position: "fixed",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          zIndex: 50,
-        }}
-      >
+      {/* ПК: Sidebar слева */}
+      <div className="desktopOnly" style={{ position: "fixed", left: 0, top: 0, bottom: 0, zIndex: 50 }}>
         <Sidebar />
       </div>
 
+      {/* контент */}
       <main
-        className="appMain"
         style={{
           flex: 1,
           padding: 14,
-          marginLeft: 84, // desktop
+          marginLeft: 84, // для ПК (перекроется на мобилке через CSS ниже)
           minWidth: 0,
           height: "100vh",
           overflow: "hidden",
         }}
+        className="mainWrap"
       >
         <div
-          className="appCard"
           style={{
             height: "calc(100vh - 28px)",
             borderRadius: 18,
@@ -59,8 +50,6 @@ export default function AppShell({ children }) {
               overflowY: "auto",
               padding: 18,
               paddingRight: 12,
-              // важное для мобилки: чтобы контент не прятался под нижним баром
-              paddingBottom: 84,
             }}
           >
             <style>{`
@@ -69,12 +58,16 @@ export default function AppShell({ children }) {
               .appScroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 999px; }
               .appScroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
 
-              /* ===== MOBILE LAYOUT ===== */
-              @media (max-width: 820px){
-                .sidebarWrap { display:none; }
-                .appMain { margin-left: 0 !important; padding: 10px !important; }
-                .appCard { border-radius: 16px !important; height: calc(100vh - 20px) !important; }
-                .appScroll { padding: 14px !important; padding-bottom: 92px !important; }
+              /* ====== responsive переключение ====== */
+              .mobileOnly { display: none; }
+              .desktopOnly { display: block; }
+
+              @media (max-width: 860px){
+                .desktopOnly { display: none !important; }  /* на мобилке скрыли левый sidebar */
+                .mobileOnly  { display: block !important; } /* показали нижнюю панель */
+                .mainWrap { margin-left: 0 !important; padding: 10px !important; }
+                /* чтобы контент не уезжал под нижнюю панель */
+                .appScroll { padding-bottom: 92px !important; }
               }
             `}</style>
 
@@ -82,6 +75,11 @@ export default function AppShell({ children }) {
           </div>
         </div>
       </main>
+
+      {/* Мобилка: нижний navbar */}
+      <div className="mobileOnly">
+        <BottomNav />
+      </div>
     </div>
   );
 }
