@@ -66,7 +66,13 @@ function DownloadIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 10l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M8 10l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <path d="M5 20h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
@@ -294,7 +300,7 @@ export default function Chats() {
 
       const created = res.data;
 
-      // ✅ Без дублей: если вдруг уже есть такое id — не добавляем
+      // ✅ Без дублей
       setMessages((prev) => {
         const arr = Array.isArray(prev) ? prev : [];
         if (created?.id && arr.some((x) => x?.id === created.id)) return arr;
@@ -324,24 +330,28 @@ export default function Chats() {
 
   const leftWidth = 330;
 
-  // === panes ===
+  // ======= panes (ВАЖНО: убрали отдельные “плавающие” карточки) =======
+
   const ChatsListPane = (
     <div
       style={{
         width: isMobile ? "100%" : leftWidth,
         minWidth: isMobile ? 0 : leftWidth,
         maxWidth: isMobile ? "none" : leftWidth,
-        borderRadius: isMobile ? 0 : 18,
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderLeft: isMobile ? 0 : "1px solid rgba(255,255,255,0.10)",
-        borderRight: isMobile ? 0 : "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(0,0,0,0.20)",
-        overflow: "hidden",
+
+        // было “плавающее”: border/bg/radius — убрали
+        border: 0,
+        borderRadius: 0,
+        background: "transparent",
+
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
+        height: "100%",
+        overflow: "hidden",
       }}
     >
+      {/* search */}
       <div style={{ padding: 12, paddingBottom: 10 }}>
         <input
           value={q}
@@ -361,6 +371,7 @@ export default function Chats() {
         />
       </div>
 
+      {/* list */}
       <div
         ref={listRef}
         className="chatListScroll"
@@ -407,7 +418,6 @@ export default function Chats() {
                     borderRadius: 14,
                     border: "1px solid rgba(255,255,255,0.10)",
                     background: active ? ACCENT_BG : NEUTRAL_BG, // ✅ монолит
-                    boxShadow: active ? "0 10px 30px rgba(0,0,0,0.45)" : "none",
                     padding: 12,
                     display: "flex",
                     alignItems: "center",
@@ -417,6 +427,7 @@ export default function Chats() {
                   }}
                 >
                   <Avatar username={p?.username || title} avatarUrl={avatarUrl} size={44} />
+
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
                       <div
@@ -431,6 +442,7 @@ export default function Chats() {
                       >
                         {title}
                       </div>
+
                       <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 800, fontSize: 12 }}>{time}</div>
                     </div>
 
@@ -463,15 +475,17 @@ export default function Chats() {
       style={{
         flex: 1,
         minWidth: 0,
-        borderRadius: isMobile ? 0 : 18,
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderLeft: isMobile ? 0 : "1px solid rgba(255,255,255,0.10)",
-        borderRight: isMobile ? 0 : "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(0,0,0,0.20)",
+
+        // было “плавающее”: border/bg/radius — убрали
+        border: 0,
+        borderRadius: 0,
+        background: "transparent",
+
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
+        height: "100%",
       }}
     >
       {/* header */}
@@ -480,106 +494,102 @@ export default function Chats() {
           padding: 14,
           borderBottom: "1px solid rgba(255,255,255,0.08)",
           minHeight: 62,
-          overflowX: "hidden",
         }}
       >
-        {/* DESKTOP header (оставляем как было) */}
+        {/* DESKTOP header */}
         {!isMobile ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {selectedChat ? (
-              <>
-                <Avatar username={peer?.username || "Chat"} avatarUrl={peerAvatar} size={40} />
-                <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-                  <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>{peerTitle}</div>
-                  <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 700, fontSize: 12 }}>был(а) недавно</div>
-                </div>
-                {/* ✅ аватар прижать вправо на десктопе тоже */}
-                <div style={{ flex: 1 }} />
-                <button
-                  onClick={goPeerProfile}
-                  title="Profile"
-                  style={{ all: "unset", cursor: "pointer", display: "grid", placeItems: "center" }}
-                >
-                  <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
-                </button>
-              </>
-            ) : (
-              <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)" }}>Chat</div>
-            )}
-          </div>
-        ) : (
-          // MOBILE header: стрелка без квадрата, центр, аватар справа
           selectedChat ? (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "40px 1fr 40px",
-                alignItems: "center",
-                gap: 12,
-                minWidth: 0,
-                paddingTop: "env(safe-area-inset-top)",
-              }}
-            >
-              <button
-                onClick={goBackMobile}
-                aria-label="Back"
-                title="Back"
-                style={{
-                  all: "unset",
-                  cursor: "pointer",
-                  width: 40,
-                  height: 40,
-                  display: "grid",
-                  placeItems: "center",
-                  color: "rgba(255,255,255,0.92)",
-                }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M15 18 9 12l6-6"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-
-              <div style={{ textAlign: "center", minWidth: 0 }}>
-                <div
-                  style={{
-                    fontWeight: 950,
-                    color: "rgba(255,255,255,0.92)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {peerTitle}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 750, fontSize: 12 }}>был(а) недавно</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
+                <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>{peerTitle}</div>
+                <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 700, fontSize: 12 }}>был(а) недавно</div>
               </div>
 
+              {/* ✅ аватар прижат вправо */}
+              <div style={{ flex: 1 }} />
               <button
                 onClick={goPeerProfile}
-                aria-label="Open profile"
                 title="Profile"
-                style={{
-                  all: "unset",
-                  cursor: "pointer",
-                  width: 40,
-                  height: 40,
-                  display: "grid",
-                  placeItems: "center",
-                  justifySelf: "end",
-                }}
+                aria-label="Profile"
+                style={{ all: "unset", cursor: "pointer", display: "grid", placeItems: "center" }}
               >
                 <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
               </button>
             </div>
           ) : (
-            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)", textAlign: "center" }}>Chat</div>
+            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)" }}>Chat</div>
           )
+        ) : selectedChat ? (
+          // MOBILE header: стрелка, центр, аватар справа
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "40px 1fr 40px",
+              alignItems: "center",
+              gap: 12,
+              minWidth: 0,
+              paddingTop: "env(safe-area-inset-top)",
+            }}
+          >
+            <button
+              onClick={goBackMobile}
+              aria-label="Back"
+              title="Back"
+              style={{
+                all: "unset",
+                cursor: "pointer",
+                width: 40,
+                height: 40,
+                display: "grid",
+                placeItems: "center",
+                color: "rgba(255,255,255,0.92)",
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M15 18 9 12l6-6"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            <div style={{ textAlign: "center", minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 950,
+                  color: "rgba(255,255,255,0.92)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {peerTitle}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 750, fontSize: 12 }}>был(а) недавно</div>
+            </div>
+
+            <button
+              onClick={goPeerProfile}
+              aria-label="Open profile"
+              title="Profile"
+              style={{
+                all: "unset",
+                cursor: "pointer",
+                width: 40,
+                height: 40,
+                display: "grid",
+                placeItems: "center",
+                justifySelf: "end",
+              }}
+            >
+              <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
+            </button>
+          </div>
+        ) : (
+          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)", textAlign: "center" }}>Chat</div>
         )}
       </div>
 
@@ -621,14 +631,21 @@ export default function Chats() {
               const time = fmtTime(m.createdAt);
 
               return (
-                <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", minWidth: 0 }}>
+                <div
+                  key={m.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: mine ? "flex-end" : "flex-start",
+                    minWidth: 0,
+                  }}
+                >
                   <div
                     style={{
                       maxWidth: "min(520px, 78%)",
                       borderRadius: 14,
                       padding: "10px 12px",
                       border: "1px solid rgba(255,255,255,0.10)",
-                      background: mine ? ACCENT_BG : NEUTRAL_BG, // ✅ монолит, без градиента
+                      background: mine ? ACCENT_BG : NEUTRAL_BG, // ✅ монолит
                       color: ACCENT_TEXT,
                       boxShadow: "0 10px 26px rgba(0,0,0,0.35)",
                       overflow: "hidden",
@@ -641,14 +658,16 @@ export default function Chats() {
                       <div style={{ whiteSpace: "pre-wrap", fontWeight: 700, lineHeight: 1.35 }}>{m.text}</div>
                     ) : null}
 
-                    {/* ✅ Вложения ТОЛЬКО ОДИН РАЗ (убрали дубль) */}
+                    {/* ✅ Вложения ТОЛЬКО ОДИН РАЗ */}
                     {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
                       <div style={{ marginTop: m.text ? 8 : 0, display: "grid", gap: 8 }}>
                         {m.attachments.map((a) => {
                           const fullName = a.fileName || a.originalName || "file";
                           const showName = shortFileName(fullName);
+
                           const size = typeof a.size === "number" ? a.size : 0;
                           const sizeKb = size ? `${Math.max(1, Math.round(size / 1024))} KB` : "";
+
                           const href = `/api/chats/attachments/${a.id}/download`;
 
                           return (
@@ -689,8 +708,8 @@ export default function Chats() {
                               <span
                                 style={{
                                   flex: "0 0 auto",
-                                  width: 32,
-                                  height: 32,
+                                  width: 34,
+                                  height: 34,
                                   borderRadius: 12,
                                   border: "1px solid rgba(255,255,255,0.10)",
                                   background: "rgba(255,255,255,0.07)",
@@ -800,26 +819,34 @@ export default function Chats() {
 
   // === layout root ===
   return (
-    <div style={{ height: "100%", minHeight: 0, overflowX: "hidden" }}>
-      {/* Важно: на мобилке показываем либо список, либо чат (а не прячем CSS’ом) */}
+    <div
+      style={{
+        height: "100%",
+        minHeight: 0,
+
+        // ключ: делаем страницу чатов “полноэкранной” внутри AppShell,
+        // чтобы скроллились только list/messages
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <div
         style={{
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           gap: isMobile ? 0 : 14,
-          height: "100%",
-          minHeight: 0,
-          overflowX: "hidden",
+          overflow: "hidden",
+          minWidth: 0,
         }}
       >
-        {isMobile ? (
-          selectedId ? (
-            ChatPane
-          ) : (
-            ChatsListPane
-          )
-        ) : (
+        {/* Важно: на мобилке показываем либо список, либо чат */}
+        {isMobile ? (selectedId ? ChatPane : ChatsListPane) : (
           <>
             {ChatsListPane}
+            {/* аккуратный разделитель вместо второй “карточки” */}
+            <div style={{ width: 1, background: "rgba(255,255,255,0.08)" }} />
             {ChatPane}
           </>
         )}
