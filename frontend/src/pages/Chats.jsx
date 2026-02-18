@@ -6,26 +6,18 @@ import { useAuth } from "../store/auth.jsx";
 
 const API_ORIGIN = "";
 
-// === UI constants (монолитный акцент) ===
-const ACCENT_BG = "rgba(170, 120, 255, 0.26)"; // выбранный чат + мои сообщения
-const ACCENT_TEXT = "rgba(255,255,255,0.92)";
+// монолитные фоны (как у тебя сейчас)
+const ACCENT_BG = "rgba(170, 120, 255, 0.22)";
 const NEUTRAL_BG = "rgba(255,255,255,0.06)";
 
-function useIsMobile(breakpoint = 820) {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(`(max-width: ${breakpoint}px)`).matches;
-  });
-
+function useIsMobile(bp = 820) {
+  const [m, setM] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= bp : false));
   useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    const onChange = () => setIsMobile(mq.matches);
-    onChange();
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, [breakpoint]);
-
-  return isMobile;
+    const on = () => setM(window.innerWidth <= bp);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, [bp]);
+  return m;
 }
 
 function buildSrc(u) {
@@ -58,6 +50,7 @@ function shortFileName(name = "") {
   const dot = s.lastIndexOf(".");
   const ext = dot > 0 && dot < s.length - 1 ? s.slice(dot) : "";
   const base = dot > 0 ? s.slice(0, dot) : s;
+
   const trimmed = base.length > 8 ? base.slice(0, 8) + "…" : base;
   return trimmed + ext;
 }
@@ -74,6 +67,41 @@ function DownloadIcon({ size = 18 }) {
         strokeLinejoin="round"
       />
       <path d="M5 20h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// иконка отправки (тап/нажатие) — максимально похожая по смыслу
+function TapSendIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M9 11V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5V13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 11.5V10.5c0-1.1.9-2 2-2s2 .9 2 2v4.2c0 3-2.4 5.3-5.4 5.3H11c-2.7 0-5-1.9-5.5-4.6l-.5-2.4c-.2-.9.5-1.8 1.4-1.8.6 0 1.1.3 1.4.8l1.2 2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function DownIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 10l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -153,6 +181,28 @@ export default function Chats() {
 
   const POLL_MS = 2500;
 
+  // ===== автоскролл / кнопка вниз =====
+  const atBottomRef = useRef(true);
+  const prevLenRef = useRef(0);
+  const [showJump, setShowJump] = useState(false);
+
+  const scrollToBottom = (smooth = false) => {
+    const el = msgRef.current;
+    if (!el) return;
+    const top = el.scrollHeight;
+    if (smooth) el.scrollTo({ top, behavior: "smooth" });
+    else el.scrollTop = top;
+  };
+
+  const onMsgScroll = () => {
+    const el = msgRef.current;
+    if (!el) return;
+    const delta = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = delta < 80;
+    atBottomRef.current = atBottom;
+    setShowJump(!atBottom);
+  };
+
   const filteredChats = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return chats;
@@ -187,10 +237,25 @@ export default function Chats() {
       }
       const res = await http.get(`/chats/${chatId}/messages?limit=80`);
       const items = res.data?.items || res.data || [];
-      setMessages(Array.isArray(items) ? items : []);
+      const next = Array.isArray(items) ? items : [];
+
+      setMessages(next);
+
+      // автоскролл только если пользователь был внизу
+      const grew = next.length > (prevLenRef.current || 0);
+      prevLenRef.current = next.length;
+
+      if (grew) {
+        if (atBottomRef.current) {
+          setTimeout(() => scrollToBottom(false), 0);
+        } else {
+          setShowJump(true);
+        }
+      }
     } catch (e) {
       setMsgsErr(e?.response?.data?.error || e?.response?.data?.message || e.message);
       setMessages([]);
+      prevLenRef.current = 0;
     } finally {
       if (!silent) setLoadingMsgs(false);
     }
@@ -231,6 +296,8 @@ export default function Chats() {
       setMessages([]);
       setMsgsErr("");
       setLoadingMsgs(false);
+      prevLenRef.current = 0;
+      setShowJump(false);
       return;
     }
 
@@ -239,9 +306,9 @@ export default function Chats() {
     (async () => {
       if (!alive) return;
       await fetchMessages(selectedId);
-      setTimeout(() => {
-        if (msgRef.current) msgRef.current.scrollTop = msgRef.current.scrollHeight;
-      }, 0);
+      setTimeout(() => scrollToBottom(false), 0);
+      atBottomRef.current = true;
+      setShowJump(false);
     })();
 
     const t = setInterval(() => {
@@ -312,9 +379,10 @@ export default function Chats() {
 
       fetchChats({ silent: true });
 
-      setTimeout(() => {
-        if (msgRef.current) msgRef.current.scrollTop = msgRef.current.scrollHeight;
-      }, 0);
+      // после отправки — всегда вниз
+      atBottomRef.current = true;
+      setShowJump(false);
+      setTimeout(() => scrollToBottom(false), 0);
     } catch (e2) {
       alert(e2?.response?.data?.error || e2?.response?.data?.message || e2.message);
     } finally {
@@ -323,6 +391,7 @@ export default function Chats() {
   }
 
   const goBackMobile = () => navigate("/chats");
+
   const goPeerProfile = () => {
     if (peer?.id) navigate(`/profile/${peer.id}`);
     else navigate("/profile");
@@ -330,24 +399,17 @@ export default function Chats() {
 
   const leftWidth = 330;
 
-  // ======= panes (ВАЖНО: убрали отдельные “плавающие” карточки) =======
-
+  // ======= panes (как у тебя сейчас в гите) =======
   const ChatsListPane = (
     <div
       style={{
         width: isMobile ? "100%" : leftWidth,
         minWidth: isMobile ? 0 : leftWidth,
         maxWidth: isMobile ? "none" : leftWidth,
-
-        // было “плавающее”: border/bg/radius — убрали
-        border: 0,
-        borderRadius: 0,
-        background: "transparent",
-
+        height: "100%",
+        minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        minHeight: 0,
-        height: "100%",
         overflow: "hidden",
       }}
     >
@@ -374,7 +436,7 @@ export default function Chats() {
       {/* list */}
       <div
         ref={listRef}
-        className="chatListScroll"
+        className="chatListScroll noX"
         style={{
           flex: 1,
           minHeight: 0,
@@ -386,6 +448,7 @@ export default function Chats() {
         }}
       >
         <style>{`
+          .noX{ overflow-x:hidden !important; }
           .chatListScroll::-webkit-scrollbar { width: 10px; }
           .chatListScroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
           .chatListScroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 999px; }
@@ -417,7 +480,7 @@ export default function Chats() {
                     cursor: "pointer",
                     borderRadius: 14,
                     border: "1px solid rgba(255,255,255,0.10)",
-                    background: active ? ACCENT_BG : NEUTRAL_BG, // ✅ монолит
+                    background: active ? ACCENT_BG : NEUTRAL_BG,
                     padding: 12,
                     display: "flex",
                     alignItems: "center",
@@ -472,49 +535,48 @@ export default function Chats() {
 
   const ChatPane = (
     <div
+      className="noX"
       style={{
         flex: 1,
         minWidth: 0,
-
-        // было “плавающее”: border/bg/radius — убрали
-        border: 0,
-        borderRadius: 0,
-        background: "transparent",
-
-        overflow: "hidden",
+        height: "100%",
+        minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        minHeight: 0,
-        height: "100%",
+        overflow: "hidden",
+        position: "relative", // для кнопки вниз
       }}
     >
       {/* header */}
       <div
+        className="noX"
         style={{
           padding: 14,
           borderBottom: "1px solid rgba(255,255,255,0.08)",
           minHeight: 62,
+          overflowX: "hidden",
         }}
       >
         {/* DESKTOP header */}
         {!isMobile ? (
           selectedChat ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
                 <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>{peerTitle}</div>
                 <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 700, fontSize: 12 }}>был(а) недавно</div>
               </div>
 
               {/* ✅ аватар прижат вправо */}
-              <div style={{ flex: 1 }} />
-              <button
-                onClick={goPeerProfile}
-                title="Profile"
-                aria-label="Profile"
-                style={{ all: "unset", cursor: "pointer", display: "grid", placeItems: "center" }}
-              >
-                <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
-              </button>
+              <div style={{ marginLeft: "auto" }}>
+                <button
+                  onClick={goPeerProfile}
+                  style={{ all: "unset", cursor: "pointer", display: "grid", placeItems: "center" }}
+                  title="Profile"
+                  aria-label="Profile"
+                >
+                  <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)" }}>Chat</div>
@@ -596,7 +658,8 @@ export default function Chats() {
       {/* messages */}
       <div
         ref={msgRef}
-        className="msgScroll"
+        onScroll={onMsgScroll}
+        className="msgScroll noX"
         style={{
           flex: 1,
           minHeight: 0,
@@ -631,22 +694,15 @@ export default function Chats() {
               const time = fmtTime(m.createdAt);
 
               return (
-                <div
-                  key={m.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: mine ? "flex-end" : "flex-start",
-                    minWidth: 0,
-                  }}
-                >
+                <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", minWidth: 0 }}>
                   <div
                     style={{
                       maxWidth: "min(520px, 78%)",
                       borderRadius: 14,
                       padding: "10px 12px",
                       border: "1px solid rgba(255,255,255,0.10)",
-                      background: mine ? ACCENT_BG : NEUTRAL_BG, // ✅ монолит
-                      color: ACCENT_TEXT,
+                      background: mine ? ACCENT_BG : NEUTRAL_BG,
+                      color: "rgba(255,255,255,0.92)",
                       boxShadow: "0 10px 26px rgba(0,0,0,0.35)",
                       overflow: "hidden",
                       minWidth: 0,
@@ -664,10 +720,8 @@ export default function Chats() {
                         {m.attachments.map((a) => {
                           const fullName = a.fileName || a.originalName || "file";
                           const showName = shortFileName(fullName);
-
                           const size = typeof a.size === "number" ? a.size : 0;
                           const sizeKb = size ? `${Math.max(1, Math.round(size / 1024))} KB` : "";
-
                           const href = `/api/chats/attachments/${a.id}/download`;
 
                           return (
@@ -727,7 +781,15 @@ export default function Chats() {
                       </div>
                     ) : null}
 
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.65, fontWeight: 800, textAlign: mine ? "right" : "left" }}>
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 12,
+                        opacity: 0.65,
+                        fontWeight: 800,
+                        textAlign: mine ? "right" : "left",
+                      }}
+                    >
                       {time}
                     </div>
                   </div>
@@ -738,9 +800,41 @@ export default function Chats() {
         )}
       </div>
 
+      {/* кнопка “вниз” (появляется если ты не внизу) */}
+      {selectedId && showJump ? (
+        <button
+          onClick={() => {
+            atBottomRef.current = true;
+            setShowJump(false);
+            scrollToBottom(true);
+          }}
+          aria-label="Scroll to bottom"
+          title="Вниз"
+          style={{
+            position: "absolute",
+            right: 14,
+            bottom: 14 + 56 + 10, // над композером
+            width: 44,
+            height: 44,
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(0,0,0,0.35)",
+            color: "rgba(255,255,255,0.92)",
+            display: "grid",
+            placeItems: "center",
+            cursor: "pointer",
+            boxShadow: "0 14px 30px rgba(0,0,0,0.45)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <DownIcon size={18} />
+        </button>
+      ) : null}
+
       {/* composer */}
       <form
         onSubmit={onSend}
+        className="noX"
         style={{
           padding: 14,
           paddingBottom: `calc(14px + env(safe-area-inset-bottom))`,
@@ -798,20 +892,24 @@ export default function Chats() {
         <button
           type="submit"
           disabled={!selectedId || sending}
+          aria-label="Send"
+          title="Send"
           style={{
+            width: 44,
             height: 40,
-            padding: "0 16px",
             borderRadius: 12,
             border: "1px solid rgba(255,255,255,0.10)",
-            background: ACCENT_BG, // ✅ монолит
+            background: "rgba(170, 120, 255, 0.25)",
             color: "rgba(255,255,255,0.92)",
             fontWeight: 900,
             cursor: !selectedId || sending ? "not-allowed" : "pointer",
             opacity: !selectedId || sending ? 0.6 : 1,
             flex: "0 0 auto",
+            display: "grid",
+            placeItems: "center",
           }}
         >
-          Send
+          <TapSendIcon size={20} />
         </button>
       </form>
     </div>
@@ -819,38 +917,50 @@ export default function Chats() {
 
   // === layout root ===
   return (
-    <div
-      style={{
-        height: "100%",
-        minHeight: 0,
-
-        // ключ: делаем страницу чатов “полноэкранной” внутри AppShell,
-        // чтобы скроллились только list/messages
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          gap: isMobile ? 0 : 14,
-          overflow: "hidden",
-          minWidth: 0,
-        }}
-      >
-        {/* Важно: на мобилке показываем либо список, либо чат */}
-        {isMobile ? (selectedId ? ChatPane : ChatsListPane) : (
-          <>
+    <div style={{ height: "100%", minHeight: 0 }}>
+      {/* Важно: на мобилке показываем либо список, либо чат */}
+      {isMobile ? (
+        selectedId ? (
+          ChatPane
+        ) : (
+          ChatsListPane
+        )
+      ) : (
+        <div style={{ display: "flex", gap: 14, height: "100%", minHeight: 0, overflow: "hidden" }} className="noX">
+          <div
+            style={{
+              width: leftWidth,
+              minWidth: leftWidth,
+              maxWidth: leftWidth,
+              borderRadius: 18,
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(0,0,0,0.20)",
+              overflow: "hidden",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             {ChatsListPane}
-            {/* аккуратный разделитель вместо второй “карточки” */}
-            <div style={{ width: 1, background: "rgba(255,255,255,0.08)" }} />
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              borderRadius: 18,
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(0,0,0,0.20)",
+              overflow: "hidden",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             {ChatPane}
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
