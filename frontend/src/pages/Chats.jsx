@@ -55,6 +55,14 @@ function shortFileName(name = "") {
   return trimmed + ext;
 }
 
+function isImageMime(mime = "") {
+  return /^image\//i.test(mime);
+}
+
+function isVideoMime(mime = "") {
+  return /^video\//i.test(mime);
+}
+
 function DownloadIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -71,22 +79,25 @@ function DownloadIcon({ size = 18 }) {
   );
 }
 
-// иконка отправки (тап/нажатие) — максимально похожая по смыслу
+// ✅ Иконка Share / Upload (как на картинке)
 function TapSendIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      {/* стрелка вверх */}
+      <path d="M12 16V4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path
-        d="M9 11V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5V13"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 11.5V10.5c0-1.1.9-2 2-2s2 .9 2 2v4.2c0 3-2.4 5.3-5.4 5.3H11c-2.7 0-5-1.9-5.5-4.6l-.5-2.4c-.2-.9.5-1.8 1.4-1.8.6 0 1.1.3 1.4.8l1.2 2"
+        d="M8 8L12 4L16 8"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+      {/* нижний лоток */}
+      <path
+        d="M4 14V17C4 19 5 20 7 20H17C19 20 20 19 20 17V14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -185,6 +196,21 @@ export default function Chats() {
   const atBottomRef = useRef(true);
   const prevLenRef = useRef(0);
   const [showJump, setShowJump] = useState(false);
+
+  // viewer для фото/гиф (увеличение на блюре)
+  const [viewer, setViewer] = useState({ open: false, src: "", alt: "" });
+  const openViewer = (src, alt = "") => setViewer({ open: true, src, alt });
+  const closeViewer = () => setViewer({ open: false, src: "", alt: "" });
+
+  // закрыть viewer по ESC
+  useEffect(() => {
+    if (!viewer.open) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") closeViewer();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewer.open]);
 
   const scrollToBottom = (smooth = false) => {
     const el = msgRef.current;
@@ -376,7 +402,6 @@ export default function Chats() {
 
       setText("");
       setFiles([]);
-
       fetchChats({ silent: true });
 
       // после отправки — всегда вниз
@@ -391,7 +416,6 @@ export default function Chats() {
   }
 
   const goBackMobile = () => navigate("/chats");
-
   const goPeerProfile = () => {
     if (peer?.id) navigate(`/profile/${peer.id}`);
     else navigate("/profile");
@@ -401,20 +425,9 @@ export default function Chats() {
 
   // ======= panes (как у тебя сейчас в гите) =======
   const ChatsListPane = (
-    <div
-      style={{
-        width: isMobile ? "100%" : leftWidth,
-        minWidth: isMobile ? 0 : leftWidth,
-        maxWidth: isMobile ? "none" : leftWidth,
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {/* search */}
-      <div style={{ padding: 12, paddingBottom: 10 }}>
+      <div style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -434,35 +447,23 @@ export default function Chats() {
       </div>
 
       {/* list */}
-      <div
-        ref={listRef}
-        className="chatListScroll noX"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          overflowX: "hidden",
-          padding: 12,
-          paddingTop: 2,
-          minWidth: 0,
-        }}
-      >
-        <style>{`
-          .noX{ overflow-x:hidden !important; }
-          .chatListScroll::-webkit-scrollbar { width: 10px; }
-          .chatListScroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
-          .chatListScroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 999px; }
-          .chatListScroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
-        `}</style>
-
+        <div
+          ref={listRef}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: 14,
+          }}
+        >
         {loadingChats ? (
-          <div style={{ color: "rgba(255,255,255,0.7)", padding: 8 }}>Loading...</div>
+          <div style={{ color: "rgba(255,255,255,0.70)" }}>Loading...</div>
         ) : chatsErr ? (
-          <div style={{ color: "crimson", padding: 8 }}>{chatsErr}</div>
+          <div style={{ color: "crimson", fontWeight: 800 }}>{chatsErr}</div>
         ) : filteredChats.length === 0 ? (
-          <div style={{ color: "rgba(255,255,255,0.65)", padding: 8 }}>Чатов нет</div>
+          <div style={{ color: "rgba(255,255,255,0.70)", fontWeight: 800 }}>Чатов нет</div>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
+          <>
             {filteredChats.map((c) => {
               const p = c.peer || c.participants?.find((x) => x.id !== me?.id) || null;
               const title = p?.displayName || p?.username || "Chat";
@@ -487,38 +488,39 @@ export default function Chats() {
                     gap: 12,
                     overflow: "hidden",
                     minWidth: 0,
+
+                    width: "100%",
+                    boxSizing: "border-box",
+                    marginBottom: 10,   // вместо grid gap
                   }}
                 >
-                  <Avatar username={p?.username || title} avatarUrl={avatarUrl} size={44} />
+                  <Avatar username={title} avatarUrl={avatarUrl} size={44} />
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                       <div
                         style={{
                           fontWeight: 900,
-                          color: "rgba(255,255,255,0.92)",
+                          color: "rgba(255,255,255,0.95)",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          minWidth: 0,
                         }}
                       >
                         {title}
                       </div>
-
-                      <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 800, fontSize: 12 }}>{time}</div>
+                      <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 800, flex: "0 0 auto" }}>{time}</div>
                     </div>
 
                     <div
                       style={{
-                        marginTop: 3,
-                        color: "rgba(255,255,255,0.70)",
-                        fontWeight: 700,
+                        marginTop: 4,
                         fontSize: 13,
+                        opacity: 0.75,
+                        fontWeight: 700,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        minWidth: 0,
                       }}
                     >
                       {last || " "}
@@ -527,131 +529,114 @@ export default function Chats() {
                 </button>
               );
             })}
-          </div>
+          </>
         )}
       </div>
     </div>
   );
 
   const ChatPane = (
-    <div
-      className="noX"
-      style={{
-        flex: 1,
-        minWidth: 0,
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        position: "relative", // для кнопки вниз
-      }}
-    >
+    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
       {/* header */}
       <div
-        className="noX"
         style={{
           padding: 14,
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          minHeight: 62,
-          overflowX: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          minWidth: 0,
         }}
       >
         {/* DESKTOP header */}
         {!isMobile ? (
           selectedChat ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-                <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>{peerTitle}</div>
-                <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 700, fontSize: 12 }}>был(а) недавно</div>
+            <>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 900, fontSize: 18, color: "rgba(255,255,255,0.95)" }}>{peerTitle}</div>
+                <div style={{ marginTop: 2, fontSize: 12, opacity: 0.7, fontWeight: 800 }}>был(а) недавно</div>
               </div>
 
               {/* ✅ аватар прижат вправо */}
-              <div style={{ marginLeft: "auto" }}>
-                <button
-                  onClick={goPeerProfile}
-                  style={{ all: "unset", cursor: "pointer", display: "grid", placeItems: "center" }}
-                  title="Profile"
-                  aria-label="Profile"
-                >
-                  <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
-                </button>
-              </div>
-            </div>
+              <button
+                onClick={goPeerProfile}
+                title="Профиль"
+                style={{
+                  all: "unset",
+                  cursor: "pointer",
+                  marginLeft: "auto",
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                <Avatar username={peerTitle} avatarUrl={peerAvatar} size={44} />
+              </button>
+            </>
           ) : (
-            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)" }}>Chat</div>
+            <div style={{ fontWeight: 900, fontSize: 18, color: "rgba(255,255,255,0.95)" }}>Chat</div>
           )
         ) : selectedChat ? (
           // MOBILE header: стрелка, центр, аватар справа
-          <div
+          <>
+          <button
+            onClick={goBackMobile}
+            aria-label="Назад"
+            title="Назад"
             style={{
+              all: "unset",
+              cursor: "pointer",
+              padding: 6,          // зона тапа
               display: "grid",
-              gridTemplateColumns: "40px 1fr 40px",
-              alignItems: "center",
-              gap: 12,
-              minWidth: 0,
-              paddingTop: "env(safe-area-inset-top)",
+              placeItems: "center",
+              color: "rgba(255,255,255,0.95)",
+              flex: "0 0 auto",
             }}
           >
-            <button
-              onClick={goBackMobile}
-              aria-label="Back"
-              title="Back"
-              style={{
-                all: "unset",
-                cursor: "pointer",
-                width: 40,
-                height: 40,
-                display: "grid",
-                placeItems: "center",
-                color: "rgba(255,255,255,0.92)",
-              }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M15 18 9 12l6-6"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-
-            <div style={{ textAlign: "center", minWidth: 0 }}>
-              <div
-                style={{
-                  fontWeight: 950,
-                  color: "rgba(255,255,255,0.92)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {peerTitle}
-              </div>
-              <div style={{ color: "rgba(255,255,255,0.60)", fontWeight: 750, fontSize: 12 }}>был(а) недавно</div>
-            </div>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M15 18 9 12l6-6"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
 
             <button
               onClick={goPeerProfile}
-              aria-label="Open profile"
-              title="Profile"
               style={{
                 all: "unset",
                 cursor: "pointer",
-                width: 40,
-                height: 40,
+                flex: 1,
+                minWidth: 0,
+                textAlign: "center",
+              }}
+              title="Профиль"
+            >
+              <div style={{ fontWeight: 900, fontSize: 16, color: "rgba(255,255,255,0.95)" }}>{peerTitle}</div>
+              <div style={{ marginTop: 1, fontSize: 12, opacity: 0.7, fontWeight: 800 }}>был(а) недавно</div>
+            </button>
+
+            <button
+              onClick={goPeerProfile}
+              title="Профиль"
+              style={{
+                all: "unset",
+                cursor: "pointer",
+                width: 44,
+                height: 44,
                 display: "grid",
                 placeItems: "center",
-                justifySelf: "end",
+                flex: "0 0 auto",
               }}
             >
-              <Avatar username={peer?.username || peerTitle} avatarUrl={peerAvatar} size={40} />
+              <Avatar username={peerTitle} avatarUrl={peerAvatar} size={44} />
             </button>
-          </div>
+          </>
         ) : (
-          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.75)", textAlign: "center" }}>Chat</div>
+          <div style={{ fontWeight: 900, fontSize: 18, color: "rgba(255,255,255,0.95)" }}>Chat</div>
         )}
       </div>
 
@@ -722,12 +707,111 @@ export default function Chats() {
                           const showName = shortFileName(fullName);
                           const size = typeof a.size === "number" ? a.size : 0;
                           const sizeKb = size ? `${Math.max(1, Math.round(size / 1024))} KB` : "";
-                          const href = `/api/chats/attachments/${a.id}/download`;
 
+                          const downloadHref = `/api/chats/attachments/${a.id}/download`;
+                          const mime = a.mime || a.mimeType || "";
+                          const srcUrl = buildSrc(a.url || "");
+
+                          // Фото / GIF
+                          if (srcUrl && isImageMime(mime)) {
+                            return (
+                              <div key={a.id} style={{ display: "grid", gap: 6 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openViewer(srcUrl, fullName)}
+                                  title={fullName}
+                                  style={{
+                                    all: "unset",
+                                    cursor: "pointer",
+                                    borderRadius: 12,
+                                    overflow: "hidden",
+                                    border: "1px solid rgba(255,255,255,0.10)",
+                                    background: "rgba(0,0,0,0.22)",
+                                    maxWidth: 520,
+                                  }}
+                                >
+                                  <img
+                                    src={srcUrl}
+                                    alt={fullName}
+                                    loading="lazy"
+                                    style={{
+                                      display: "block",
+                                      width: "100%",
+                                      height: "auto",
+                                      maxHeight: 520,
+                                      objectFit: "cover",
+                                    }}
+                                  />
+                                </button>
+
+                                <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+                                  <span
+                                    style={{
+                                      fontWeight: 900,
+                                      fontSize: 13,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      minWidth: 0,
+                                    }}
+                                  >
+                                    {showName}
+                                  </span>
+                                  <span style={{ opacity: 0.7, fontWeight: 700, fontSize: 11, flex: "0 0 auto" }}>
+                                    {sizeKb}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // Видео
+                          if (srcUrl && isVideoMime(mime)) {
+                            return (
+                              <div key={a.id} style={{ display: "grid", gap: 6 }}>
+                                <div
+                                  style={{
+                                    borderRadius: 12,
+                                    overflow: "hidden",
+                                    border: "1px solid rgba(255,255,255,0.10)",
+                                    background: "rgba(0,0,0,0.22)",
+                                    maxWidth: 520,
+                                  }}
+                                >
+                                  <video
+                                    src={srcUrl}
+                                    controls
+                                    playsInline
+                                    style={{ display: "block", width: "100%", maxHeight: 520 }}
+                                  />
+                                </div>
+
+                                <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+                                  <span
+                                    style={{
+                                      fontWeight: 900,
+                                      fontSize: 13,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      minWidth: 0,
+                                    }}
+                                  >
+                                    {showName}
+                                  </span>
+                                  <span style={{ opacity: 0.7, fontWeight: 700, fontSize: 11, flex: "0 0 auto" }}>
+                                    {sizeKb}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // Остальные файлы — как и было
                           return (
                             <a
                               key={a.id}
-                              href={href}
+                              href={downloadHref}
                               title={fullName}
                               style={{
                                 textDecoration: "none",
@@ -961,6 +1045,74 @@ export default function Chats() {
           </div>
         </div>
       )}
+
+      {/* viewer для фото/гиф (увеличение на блюре) */}
+      {viewer.open ? (
+        <div
+          onClick={closeViewer}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(14px)",
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeViewer();
+            }}
+            aria-label="Close"
+            title="Close"
+            style={{
+              position: "fixed",
+              top: "calc(14px + env(safe-area-inset-top))",
+              left: 14,
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(0,0,0,0.35)",
+              color: "rgba(255,255,255,0.92)",
+              cursor: "pointer",
+              display: "grid",
+              placeItems: "center",
+              fontSize: 22,
+              fontWeight: 900,
+            }}
+          >
+            ×
+          </button>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "min(92vw, 980px)",
+              maxHeight: "min(88vh, 900px)",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <img
+              src={viewer.src}
+              alt={viewer.alt}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "100%",
+                borderRadius: 18,
+                boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(0,0,0,0.20)",
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

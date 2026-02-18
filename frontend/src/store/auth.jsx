@@ -1,3 +1,4 @@
+// frontend/src/store/auth.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const AuthContext = createContext(null);
@@ -32,7 +33,6 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!token) return;
-    // если вдруг localStorage очистился
     localStorage.setItem("token", token);
   }, [token]);
 
