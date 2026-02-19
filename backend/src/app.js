@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 
 import authRoutes from "./routes/auth.routes.js";
 import postsRoutes from "./routes/posts.routes.js";
-import usersRoutes from "./routes/users.routes.js";
+import usersRouter from "./routes/users.routes.js";
 import followsRoutes from "./routes/follows.routes.js";
 import likesRoutes from "./routes/likes.routes.js";
 import commentsRoutes from "./routes/comments.routes.js";
@@ -29,7 +29,7 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postsRoutes);
-app.use("/api/users", usersRoutes);
+app.use("/api/users", usersRouter);
 app.use("/api/follows", followsRoutes);
 app.use("/api/likes", likesRoutes);
 app.use("/api/comments", commentsRoutes);

@@ -14,6 +14,9 @@ model User {
   password  String
   createdAt DateTime @default(now())
 
+  isEmailVerified        Boolean                 @default(false)
+  emailVerificationCodes EmailVerificationCode[]
+
   // chats
   conversationParticipants ConversationParticipant[] @relation("UserConversationParticipants")
   messagesSent             Message[]                 @relation("UserMessagesSent")
@@ -39,6 +42,18 @@ model User {
 
   incomingFollowRequests FollowRequest[] @relation("incoming_requests")
   outgoingFollowRequests FollowRequest[] @relation("outgoing_requests")
+}
+
+model EmailVerificationCode {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Post {

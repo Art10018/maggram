@@ -3,6 +3,9 @@ import bcrypt from "bcrypt";
 
 // ==========================
 // GET USER BY ID
+// GET /api/users/:id
+// ВАЖНО: фронт ждёт ПРЯМО user object (не { user: ... })
+// + фронт ждёт profile._count.posts/followers/following
 // ==========================
 export const getUserById = async (req, res) => {
   try {
@@ -22,14 +25,20 @@ export const getUserById = async (req, res) => {
         location: true,
         isPrivate: true,
         createdAt: true,
+        _count: {
+          select: {
+            posts: true,
+            followers: true,
+            following: true,
+          },
+        },
       },
     });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    return res.json({ user });
+    // ✅ отдаём ПРЯМО объект user
+    return res.json(user);
   } catch (e) {
     console.error("getUserById error:", e);
     return res.status(500).json({ error: "Server error" });
@@ -38,20 +47,52 @@ export const getUserById = async (req, res) => {
 
 // ==========================
 // GET USER POSTS
+// GET /api/users/:id/posts
+// ВАЖНО: фронт ждёт ПРЯМО массив постов (не { posts: [...] })
+// У тебя в Prisma: Post.images (PostImage[])
 // ==========================
 export const getUserPostsById = async (req, res) => {
   try {
     const { id } = req.params;
+    const viewerId = req.user?.id || null; // optionalAuth.middleware.js кладёт req.user
 
     const posts = await prisma.post.findMany({
       where: { authorId: id },
       include: {
-        attachments: true,
+        images: true, // ✅ по схеме
+        author: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+        _count: {
+          select: { likes: true, comments: true },
+        },
+        // Чтобы посчитать likedByMe (только если есть viewerId)
+        likes: viewerId
+          ? {
+              where: { userId: viewerId },
+              select: { id: true },
+              take: 1,
+            }
+          : false,
       },
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json({ posts });
+    const mapped = posts.map((p) => {
+      const likedByMe = viewerId ? (p.likes?.length || 0) > 0 : false;
+      // убираем "likes" массив из ответа, он фронту не нужен
+      // eslint-disable-next-line no-unused-vars
+      const { likes, ...rest } = p;
+      return { ...rest, likedByMe };
+    });
+
+    // ✅ отдаём ПРЯМО массив
+    return res.json(mapped);
   } catch (e) {
     console.error("getUserPostsById error:", e);
     return res.status(500).json({ error: "Server error" });
@@ -60,6 +101,8 @@ export const getUserPostsById = async (req, res) => {
 
 // ==========================
 // UPDATE MY PROFILE
+// PATCH /api/users/me/profile
+// Settings.jsx умеет принять и {user} и прям объект — отдаём прям объект
 // ==========================
 export const updateMyProfile = async (req, res) => {
   try {
@@ -89,7 +132,7 @@ export const updateMyProfile = async (req, res) => {
       },
     });
 
-    return res.json({ user });
+    return res.json(user);
   } catch (e) {
     console.error("updateMyProfile error:", e);
     return res.status(500).json({ error: "Server error" });
@@ -98,6 +141,7 @@ export const updateMyProfile = async (req, res) => {
 
 // ==========================
 // UPDATE MY CREDENTIALS
+// PATCH /api/users/me/credentials
 // ==========================
 export const updateMyCredentials = async (req, res) => {
   try {
@@ -105,14 +149,14 @@ export const updateMyCredentials = async (req, res) => {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { username, email, currentPassword } = req.body || {};
-    if (!currentPassword)
+    if (!currentPassword) {
       return res.status(400).json({ error: "currentPassword is required" });
+    }
 
     const existing = await prisma.user.findUnique({
       where: { id: userId },
       select: { password: true },
     });
-
     if (!existing) return res.status(404).json({ error: "User not found" });
 
     const ok = await bcrypt.compare(currentPassword, existing.password);
@@ -139,14 +183,11 @@ export const updateMyCredentials = async (req, res) => {
       },
     });
 
-    return res.json({ user });
+    return res.json(user);
   } catch (e) {
     if (String(e?.code) === "P2002") {
-      return res
-        .status(400)
-        .json({ error: "Username or email already taken" });
+      return res.status(400).json({ error: "Username or email already taken" });
     }
-
     console.error("updateMyCredentials error:", e);
     return res.status(500).json({ error: "Server error" });
   }
@@ -154,12 +195,12 @@ export const updateMyCredentials = async (req, res) => {
 
 // ==========================
 // UPLOAD MY AVATAR
+// POST /api/users/me/avatar
 // ==========================
 export const uploadMyAvatar = async (req, res) => {
   try {
     const userId = req.user?.id || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
     if (!req.file) return res.status(400).json({ error: "No file" });
 
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
@@ -182,7 +223,8 @@ export const uploadMyAvatar = async (req, res) => {
       },
     });
 
-    return res.json({ user, avatarUrl });
+    // Settings.jsx поддерживает avatarUrl и user
+    return res.json({ avatarUrl, ...user });
   } catch (e) {
     console.error("uploadMyAvatar error:", e);
     return res.status(500).json({ error: "Server error" });
