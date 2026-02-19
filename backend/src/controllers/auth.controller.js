@@ -182,7 +182,28 @@ export const verifyEmail = async (req, res) => {
       where: { userId: user.id },
     });
 
-    return res.json({ success: true });
+
+const freshUser = await prisma.user.findUnique({
+  where: { id: user.id },
+  select: {
+    id: true,
+    username: true,
+    email: true,
+    displayName: true,
+    bio: true,
+    avatarUrl: true,
+    website: true,
+    github: true,
+    location: true,
+    isPrivate: true,
+    isEmailVerified: true,
+    createdAt: true,
+  },
+});
+
+const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+return res.json({ success: true, token, user: freshUser });
   } catch (e) {
     console.error("verifyEmail error:", e);
     return res.status(500).json({ error: "Server error" });
