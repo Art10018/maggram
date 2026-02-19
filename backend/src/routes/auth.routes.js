@@ -5,6 +5,8 @@ const router = Router();
 
 router.post("/login", login);
 router.post("/register", register);
+
+// email verify flow
 router.post("/verify-email", verifyEmail);
 router.post("/resend-email", resendEmail);
 

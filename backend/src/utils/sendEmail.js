@@ -1,18 +1,13 @@
-import { Resend } from "resend";
+import { Router } from "express";
+import { login, register, verifyEmail, resendEmail } from "../controllers/auth.controller.js";
 
-export async function sendVerificationEmail(to, code) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
+const router = Router();
 
-  if (!apiKey) throw new Error("RESEND_API_KEY is missing");
-  if (!from) throw new Error("EMAIL_FROM is missing");
+router.post("/login", login);
+router.post("/register", register);
 
-  const resend = new Resend(apiKey);
+// email verify flow
+router.post("/verify-email", verifyEmail);
+router.post("/resend-email", resendEmail);
 
-  await resend.emails.send({
-    from,
-    to,
-    subject: "MagGram — подтверждение email",
-    text: `Ваш код подтверждения: ${code}\nОн действует 10 минут.`,
-  });
-}
+export default router;
