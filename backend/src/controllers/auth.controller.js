@@ -3,232 +3,181 @@ import jwt from "jsonwebtoken";
 import prisma from "../prisma.js";
 import { sendVerificationEmail } from "../utils/sendEmail.js";
 
-function make6DigitCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
+const CODE_TTL_MIN = 10;
+
+function makeToken(user) {
+  return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "30d" });
 }
 
-async function issueEmailCode(userId) {
-  const code = make6DigitCode();
-
-  await prisma.emailVerificationCode.deleteMany({
-    where: { userId },
-  });
-
-  await prisma.emailVerificationCode.create({
-    data: {
-      userId,
-      code,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 минут
-    },
-  });
-
-  return code;
+function genCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-export const register = async (req, res) => {
-  const { username, email, password } = req.body;
-
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: "username, email, password are required" });
-  }
-
+export async function register(req, res) {
   try {
-    const hash = await bcrypt.hash(password, 10);
+    const { username, email, password } = req.body || {};
 
-    const user = await prisma.user.create({
-      data: {
-        username,
-        email,
-        password: hash,
-        // isEmailVerified: false (default в prisma)
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        displayName: true,
-        bio: true,
-        avatarUrl: true,
-        website: true,
-        github: true,
-        location: true,
-        isPrivate: true,
-        isEmailVerified: true,
-        createdAt: true,
-      },
-    });
-
-    // создаём и отправляем код
-    try {
-      const code = await issueEmailCode(user.id);
-      await sendVerificationEmail(user.email, code);
-    } catch (e) {
-      // не валим регистрацию, но логируем
-      console.error("send verification email error:", e);
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "username, email, password are required" });
     }
 
-    // ✅ сразу выдаём токен + user (как было)
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-    return res.json({ token, user });
-  } catch (e) {
-    return res.status(400).json({ error: "User already exists or invalid data" });
-  }
-};
+    // уже существующий юзер (любой: старый/новый)
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ username }, { email }] },
+      select: { id: true },
+    });
+    if (existingUser) return res.status(409).json({ error: "Username or email already taken" });
 
-export const login = async (req, res) => {
-  // у тебя фронт шлёт { login: "...", password: "..." }
-  // а старый код принимал { email, password } и использовал email как login
-  // делаем совместимость:
-  const loginValue = req.body.login ?? req.body.email;
-  const { password } = req.body;
+    // pending тоже проверяем
+    const existingPending = await prisma.pendingRegistration.findFirst({
+      where: { OR: [{ username }, { email }] },
+      select: { id: true },
+    });
+    if (existingPending) {
+      // чтобы не блокировало навсегда — обновим pending (перезапишем)
+      await prisma.pendingEmailVerificationCode.deleteMany({ where: { pendingId: existingPending.id } });
+      await prisma.pendingRegistration.delete({ where: { id: existingPending.id } });
+    }
 
-  if (!loginValue || !password) {
-    return res.status(400).json({ error: "login (email/username) and password are required" });
-  }
+    const passwordHash = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ email: loginValue }, { username: loginValue }],
-    },
-  });
-
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
-
-  const ok = await bcrypt.compare(password, user.password);
-  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-
-  // ✅ запрещаем логин, если email не подтвержден
-  if (user.isEmailVerified === false) {
-    return res.status(403).json({ error: "Email not verified" });
-  }
-
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      displayName: user.displayName,
-      bio: user.bio,
-      avatarUrl: user.avatarUrl,
-      website: user.website,
-      github: user.github,
-      location: user.location,
-      isPrivate: user.isPrivate,
-      isEmailVerified: user.isEmailVerified,
-      createdAt: user.createdAt,
-    },
-  });
-};
-
-export const me = async (req, res) => {
-  try {
-    const userId = req.user?.id || req.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        displayName: true,
-        bio: true,
-        avatarUrl: true,
-        website: true,
-        github: true,
-        location: true,
-        isPrivate: true,
-        isEmailVerified: true,
-        createdAt: true,
-      },
+    const pending = await prisma.pendingRegistration.create({
+      data: { username, email, passwordHash },
+      select: { id: true, email: true },
     });
 
-    if (!user) return res.status(404).json({ error: "User not found" });
-    return res.json(user);
+    const code = genCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL_MIN * 60 * 1000);
+
+    await prisma.pendingEmailVerificationCode.create({
+      data: { pendingId: pending.id, code, expiresAt },
+    });
+
+    await sendVerificationEmail(email, code);
+
+    // ВАЖНО: тут больше нет token/user — потому что юзера ещё нет
+    return res.json({ ok: true, email: pending.email });
   } catch (e) {
-    console.error("me error:", e);
+    console.error("register error:", e);
     return res.status(500).json({ error: "Server error" });
   }
-};
+}
 
-export const verifyEmail = async (req, res) => {
+export async function resendEmail(req, res) {
   try {
-    const { email, code } = req.body;
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: "email is required" });
 
-    if (!email || !code) {
-      return res.status(400).json({ error: "Email and code are required" });
-    }
+    const pending = await prisma.pendingRegistration.findUnique({
+      where: { email },
+      select: { id: true, email: true },
+    });
+    if (!pending) return res.status(404).json({ error: "No pending registration for this email" });
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    // чистим старые коды
+    await prisma.pendingEmailVerificationCode.deleteMany({ where: { pendingId: pending.id } });
 
-    const record = await prisma.emailVerificationCode.findFirst({
-      where: { userId: user.id, code: String(code) },
+    const code = genCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL_MIN * 60 * 1000);
+
+    await prisma.pendingEmailVerificationCode.create({
+      data: { pendingId: pending.id, code, expiresAt },
+    });
+
+    await sendVerificationEmail(email, code);
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("resendEmail error:", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+}
+
+export async function verifyEmail(req, res) {
+  try {
+    const { email, code } = req.body || {};
+    if (!email || !code) return res.status(400).json({ error: "email and code are required" });
+
+    const pending = await prisma.pendingRegistration.findUnique({
+      where: { email },
+      select: { id: true, username: true, email: true, passwordHash: true },
+    });
+    if (!pending) return res.status(400).json({ error: "Invalid code" });
+
+    const record = await prisma.pendingEmailVerificationCode.findFirst({
+      where: { pendingId: pending.id, code: String(code) },
       orderBy: { createdAt: "desc" },
+      select: { id: true, expiresAt: true },
     });
 
     if (!record) return res.status(400).json({ error: "Invalid code" });
-    if (record.expiresAt < new Date()) return res.status(400).json({ error: "Code expired" });
+    if (record.expiresAt.getTime() < Date.now()) return res.status(400).json({ error: "Code expired" });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { isEmailVerified: true },
+    // создаём реального юзера
+    const user = await prisma.user.create({
+      data: {
+        username: pending.username,
+        email: pending.email,
+        passwordHash: pending.passwordHash,
+        // если у тебя поле называется иначе — поменяй тут строку
+        isEmailVerified: true,
+      },
+      select: { id: true, username: true, email: true, avatarUrl: true, isEmailVerified: true },
     });
 
-    await prisma.emailVerificationCode.deleteMany({
-      where: { userId: user.id },
-    });
+    // чистим pending
+    await prisma.pendingEmailVerificationCode.deleteMany({ where: { pendingId: pending.id } });
+    await prisma.pendingRegistration.delete({ where: { id: pending.id } });
 
-
-const freshUser = await prisma.user.findUnique({
-  where: { id: user.id },
-  select: {
-    id: true,
-    username: true,
-    email: true,
-    displayName: true,
-    bio: true,
-    avatarUrl: true,
-    website: true,
-    github: true,
-    location: true,
-    isPrivate: true,
-    isEmailVerified: true,
-    createdAt: true,
-  },
-});
-
-const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-
-return res.json({ success: true, token, user: freshUser });
+    const token = makeToken(user);
+    return res.json({ token, user });
   } catch (e) {
     console.error("verifyEmail error:", e);
     return res.status(500).json({ error: "Server error" });
   }
-};
+}
 
-export const resendEmailCode = async (req, res) => {
+export async function login(req, res) {
   try {
-    const { email } = req.body;
+    const { login: loginValue, password } = req.body || {};
+    if (!loginValue || !password) return res.status(400).json({ error: "login and password are required" });
 
-    if (!email) return res.status(400).json({ error: "Email is required" });
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: loginValue }, { username: loginValue }] },
+    });
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
-    if (user.isEmailVerified) {
-      return res.json({ success: true, message: "Already verified" });
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(400).json({ error: "Invalid credentials" });
+
+    // ✅ ВАЖНО: старые аккаунты должны заходить без верификации.
+    // Блокируем ТОЛЬКО тех, у кого есть запись EmailVerificationCode (то есть уже "новый" поток)
+    // (старые пользователи обычно не имеют этой записи)
+    if (!user.isEmailVerified) {
+      const hasCodeRow = await prisma.emailVerificationCode.findFirst({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+
+      if (hasCodeRow) {
+        return res.status(403).json({ error: "Email not verified" });
+      }
     }
 
-    const code = await issueEmailCode(user.id);
-    await sendVerificationEmail(user.email, code);
+    const token = makeToken(user);
+    const safeUser = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      isEmailVerified: user.isEmailVerified,
+    };
 
-    return res.json({ success: true });
+    return res.json({ token, user: safeUser });
   } catch (e) {
-    console.error("resendEmailCode error:", e);
+    console.error("login error:", e);
     return res.status(500).json({ error: "Server error" });
   }
-};
+}

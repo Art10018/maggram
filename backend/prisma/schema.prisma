@@ -206,3 +206,26 @@ model AttachmentDownload {
   @@unique([attachmentId, userId])
   @@index([userId])
 }
+
+model PendingRegistration {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  codes PendingEmailVerificationCode[]
+}
+
+model PendingEmailVerificationCode {
+  id         String   @id @default(uuid())
+  code       String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  pendingId  String
+  pending    PendingRegistration @relation(fields: [pendingId], references: [id], onDelete: Cascade)
+
+  @@index([pendingId])
+  @@index([expiresAt])
+}

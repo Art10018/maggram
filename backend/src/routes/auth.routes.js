@@ -1,23 +1,11 @@
-import { Router } from "express";
-import authMiddleware from "../middleware/auth.middleware.js";
-import {
-  register,
-  login,
-  me,
-  verifyEmail,
-  resendEmailCode,
-} from "../controllers/auth.controller.js";
+import express from "express";
+import { login, register, verifyEmail, resendEmail } from "../controllers/auth.controller.js";
 
-const router = Router();
+const router = express.Router();
 
-router.post("/register", register);
 router.post("/login", login);
-
-// email verify
+router.post("/register", register);
 router.post("/verify-email", verifyEmail);
-router.post("/resend-email-code", resendEmailCode);
-
-// если у тебя контроллер me есть — оставляем
-router.get("/me", authMiddleware, me);
+router.post("/resend-email", resendEmail);
 
 export default router;
