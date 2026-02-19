@@ -1,100 +1,96 @@
-import React, { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { registerApi } from "../api/auth";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { verifyEmailApi, resendEmailApi } from "../api/auth";
+import { useAuth } from "../store/auth";
 
-export default function Register() {
+export default function VerifyEmail() {
   const nav = useNavigate();
+  const { state } = useLocation();
+  const { login: authLogin } = useAuth();
 
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const email = useMemo(() => state?.email || "", [state]);
 
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
 
-  const showButton = useMemo(() => {
-    return (username || email || password).trim().length > 0;
-  }, [username, email, password]);
+  useEffect(() => {
+    if (!email) {
+      // если вдруг сюда зашли напрямую
+      nav("/register");
+    }
+  }, [email, nav]);
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    setErr("");
-    setLoading(true);
+  const onVerify = async () => {
+    setError("");
+    setInfo("");
+
+    if (!code || code.trim().length < 4) {
+      setError("Invalid code");
+      return;
+    }
+
     try {
-      const res = await registerApi({
-        username: username.trim(),
-        email: email.trim(),
-        password,
-      });
-
-      const pendingId = res.data?.pendingId;
-      const em = res.data?.email || email.trim();
-
-      if (!pendingId) throw new Error("Register response missing pendingId");
-
-      nav("/verify-email", { replace: true, state: { pendingId, email: em } });
-    } catch (e2) {
-      setErr(e2?.response?.data?.error || e2?.response?.data?.message || e2.message);
+      setLoading(true);
+      const res = await verifyEmailApi({ email, code: code.trim() });
+      // backend вернёт token + user
+      authLogin(res.token, res.user);
+      nav("/");
+    } catch (e) {
+      const msg = e?.response?.data?.message || "Invalid code";
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  // 👇 ниже просто твой UI (я оставил максимально простой нейтральный,
-  // если у тебя уже есть — можешь оставить свои div/className 1в1 и заменить только onSubmit)
+  const onResend = async () => {
+    setError("");
+    setInfo("");
+    try {
+      setLoading(true);
+      await resendEmailApi({ email });
+      setInfo("Код отправлен ещё раз");
+    } catch (e) {
+      const msg = e?.response?.data?.message || "Server error";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="auth-wrap">
-      <div className="auth-bg" />
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo">✨</div>
 
-      <form className="auth-card" onSubmit={onSubmit}>
-        <div className="auth-logo">
-          <img src="/logo.png" alt="MagGram" />
-        </div>
+        <h2 className="auth-title">Подтвердите email</h2>
+        <p className="auth-subtitle">Мы отправили код на {email}</p>
 
-        <div className="auth-title">
-          <div className="t1">Добро пожаловать в MagGram</div>
-          <div className="t2">вы впервые тут?</div>
-        </div>
+        <input
+          className="auth-input"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Введите код"
+          inputMode="numeric"
+        />
 
-        <div className="auth-fields">
-          <div className="auth-avatar" />
-          <div className="auth-inputs">
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="username"
-              autoComplete="username"
-            />
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email"
-              autoComplete="email"
-            />
-          </div>
+        <button className="auth-btn" onClick={onVerify} disabled={loading}>
+          {loading ? "..." : "Далее"}
+        </button>
 
-          <input
-            className="auth-pass"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="password"
-            type="password"
-            autoComplete="new-password"
-          />
-        </div>
+        <button className="auth-link" onClick={onResend} disabled={loading}>
+          Отправить код ещё раз
+        </button>
 
-        {showButton && (
-          <button className="auth-btn" disabled={loading}>
-            {loading ? "..." : "Далее"}
-          </button>
-        )}
+        {info ? <div className="auth-info">{info}</div> : null}
+        {error ? <div className="auth-error">{error}</div> : null}
 
-        {err ? <div className="auth-err">{err}</div> : null}
-
-        <div className="auth-footer">
-          Есть аккаунт? <Link to="/login">Вход</Link>
-        </div>
-      </form>
+        <button className="auth-link" onClick={() => nav("/register")}>
+          Передумал? Регистрация
+        </button>
+      </div>
     </div>
   );
 }
