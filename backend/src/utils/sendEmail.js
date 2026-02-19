@@ -1,48 +1,16 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-/**
- * Если SMTP не настроен — НЕ роняем приложение.
- * Просто логируем код в консоль (удобно для dev).
- */
-function isSmtpConfigured() {
-  return (
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS &&
-    process.env.EMAIL_FROM
-  );
-}
-
-let transporter = null;
-function getTransporter() {
-  if (!isSmtpConfigured()) return null;
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-
-  return transporter;
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendVerificationEmail(to, code) {
-  const tr = getTransporter();
-
-  // DEV fallback
-  if (!tr) {
+  // если ключа нет — dev fallback
+  if (!process.env.RESEND_API_KEY) {
     console.log(`[EMAIL VERIFY DEV] to=${to} code=${code}`);
     return;
   }
 
-  await tr.sendMail({
-    from: process.env.EMAIL_FROM,
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "MagGram <onboarding@resend.dev>",
     to,
     subject: "MagGram — подтверждение email",
     text: `Ваш код подтверждения: ${code}\nОн действует 10 минут.`,
