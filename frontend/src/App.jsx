@@ -8,6 +8,7 @@ import Register from "./pages/Register.jsx";
 import Profile from "./pages/Profile.jsx";
 import NewPost from "./pages/NewPost.jsx";
 import Settings from "./pages/Settings.jsx";
+import VerifyEmail from "./pages/VerifyEmail.jsx";
 
 import Chats from "./pages/Chats.jsx";
 import ChatRoom from "./pages/ChatRoom.jsx";
@@ -36,6 +37,7 @@ export default function App() {
       {/* public */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* private */}
       <Route element={<ProtectedRoute />}>

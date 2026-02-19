@@ -355,6 +355,35 @@ export default function Profile() {
       cancelled = true;
     };
   }, [targetId, isAuthed, isMe]);
+  function SettingsIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M19.4 15a8 8 0 0 0 .1-2l2-1.5-2-3.5-2.4.6a8 8 0 0 0-1.7-1L15 3h-6l-.4 2.6a8 8 0 0 0-1.7 1L4.5 6 2.5 9.5l2 1.5a8 8 0 0 0 0 2l-2 1.5 2 3.5 2.4-.6a8 8 0 0 0 1.7 1L9 21h6l.4-2.6a8 8 0 0 0 1.7-1l2.4.6 2-3.5-2-1.5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M10 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-1"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path d="M3 12h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M7 8l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
   // закрывать меню кликом вне
   useEffect(() => {
@@ -640,7 +669,7 @@ export default function Profile() {
               >
                 <span style={{ fontSize: 20, lineHeight: 1 }}>☰</span>
               </button>
-
+              
               {menuOpen && (
                 <div
                   style={{
@@ -655,40 +684,93 @@ export default function Profile() {
                     overflow: "hidden",
                     zIndex: 20,
                     backdropFilter: "blur(10px)",
+                    padding: 6,
                   }}
                 >
                   <Link
                     to="/settings"
                     onClick={() => setMenuOpen(false)}
                     style={{
-                      display: "block",
-                      padding: "12px 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 10px",
                       textDecoration: "none",
-                      color: "rgba(255,255,255,0.9)",
-                      borderBottom: "1px solid rgba(255,255,255,0.08)",
-                      fontWeight: 700,
+                      color: "rgba(255,255,255,0.92)",
+                      borderRadius: 12,
+                      fontWeight: 800,
                     }}
+                    className="mmMenuItem"
                   >
-                    ⚙️ Settings
+                    <span
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        background: "rgba(255,255,255,0.06)",
+                        display: "grid",
+                        placeItems: "center",
+                        color: "rgba(255,255,255,0.92)",
+                        flex: "0 0 auto",
+                      }}
+                    >
+                      <SettingsIcon size={18} />
+                    </span>
+                    <span style={{ flex: 1 }}>Settings</span>
                   </Link>
+
+                  <div
+                    style={{
+                      height: 1,
+                      background: "rgba(255,255,255,0.08)",
+                      margin: "6px 8px",
+                    }}
+                  />
 
                   <button
                     onClick={onLogout}
                     style={{
                       width: "100%",
                       textAlign: "left",
-                      padding: "12px 14px",
+                      padding: "10px 10px",
                       border: 0,
                       background: "transparent",
-                      color: "rgba(255,255,255,0.9)",
                       cursor: "pointer",
-                      fontWeight: 700,
+                      fontWeight: 800,
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      color: "rgba(255,120,140,0.95)",
                     }}
+                    className="mmMenuItem"
                   >
-                    🚪 Logout
+                    <span
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,120,140,0.25)",
+                        background: "rgba(255,120,140,0.10)",
+                        display: "grid",
+                        placeItems: "center",
+                        color: "rgba(255,120,140,0.95)",
+                        flex: "0 0 auto",
+                      }}
+                    >
+                      <LogoutIcon size={18} />
+                    </span>
+                    <span style={{ flex: 1 }}>Logout</span>
                   </button>
+
+                  <style>{`
+                    .mmMenuItem:hover { background: rgba(255,255,255,0.06); }
+                    .mmMenuItem:active { transform: translateY(1px); }
+                  `}</style>
                 </div>
               )}
+
             </div>
           ) : null}
         </div>
