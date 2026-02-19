@@ -14,7 +14,6 @@ model User {
   password  String
   createdAt DateTime @default(now())
 
-  isEmailVerified        Boolean                 @default(false)
   emailVerificationCodes EmailVerificationCode[]
 
   // chats
@@ -43,8 +42,8 @@ model User {
   incomingFollowRequests FollowRequest[] @relation("incoming_requests")
   outgoingFollowRequests FollowRequest[] @relation("outgoing_requests")
 
-  isEmailVerified  Boolean  @default(false)
-  emailVerifiedAt  DateTime?
+  isEmailVerified Boolean   @default(false)
+  emailVerifiedAt DateTime?
 }
 
 model EmailVerificationCode {
@@ -221,13 +220,13 @@ model PendingRegistration {
 }
 
 model PendingEmailVerificationCode {
-  id         String   @id @default(uuid())
-  code       String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
-  pendingId  String
-  pending    PendingRegistration @relation(fields: [pendingId], references: [id], onDelete: Cascade)
+  pendingId String
+  pending   PendingRegistration @relation(fields: [pendingId], references: [id], onDelete: Cascade)
 
   @@index([pendingId])
   @@index([expiresAt])
@@ -247,14 +246,14 @@ model PendingSignup {
 }
 
 model PendingUser {
-  id           String   @id @default(cuid())
+  id           String @id @default(cuid())
   username     String
   email        String
   passwordHash String
 
-  codeHash     String
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
+  codeHash  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([email])
   @@index([username])
