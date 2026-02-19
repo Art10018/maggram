@@ -229,3 +229,30 @@ model PendingEmailVerificationCode {
   @@index([pendingId])
   @@index([expiresAt])
 }
+
+model PendingSignup {
+  id           String   @id @default(cuid())
+  username     String
+  email        String
+  passwordHash String
+  code         String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@unique([email])
+  @@unique([username])
+}
+
+model PendingUser {
+  id           String   @id @default(cuid())
+  username     String
+  email        String
+  passwordHash String
+
+  codeHash     String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@index([username])
+}
