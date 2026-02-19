@@ -1,13 +1,22 @@
-import { Router } from "express";
-import { login, register, verifyEmail, resendEmail } from "../controllers/auth.controller.js";
+import { Resend } from "resend";
 
-const router = Router();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-router.post("/login", login);
-router.post("/register", register);
+export async function sendVerificationEmail(to, code) {
+  const from = process.env.EMAIL_FROM || "MagGram <onboarding@resend.dev>";
 
-// email verify flow
-router.post("/verify-email", verifyEmail);
-router.post("/resend-email", resendEmail);
+  // простой текст — без html, чтоб не было сюрпризов
+  const subject = "MagGram — подтверждение email";
+  const text = `Ваш код подтверждения: ${code}\nОн действует 10 минут.`;
 
-export default router;
+  const { error } = await resend.emails.send({
+    from,
+    to: [to],
+    subject,
+    text,
+  });
+
+  if (error) {
+    throw new Error(error?.message || "Failed to send email");
+  }
+}
