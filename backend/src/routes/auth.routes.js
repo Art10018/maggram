@@ -3,9 +3,9 @@ import { login, register, verifyEmail, resendEmail } from "../controllers/auth.c
 
 const router = Router();
 
+router.post("/login", login);
 router.post("/register", register);
 router.post("/verify-email", verifyEmail);
 router.post("/resend-email", resendEmail);
-router.post("/login", login);
 
 export default router;

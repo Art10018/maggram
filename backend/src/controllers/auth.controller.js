@@ -1,196 +1,201 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import prisma from "../prisma.js";
+import bcrypt from "bcrypt";
+import crypto from "node:crypto";
+import { prisma } from "../prisma.js";
 import { sendVerificationEmail } from "../utils/sendEmail.js";
 
-const signToken = (user) => {
-  return jwt.sign(
-    { id: user.id, username: user.username, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: "30d" }
-  );
-};
+const CODE_TTL_MINUTES = 10;
 
-const makeCode = () => String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
-const codeExpiresAt = () => new Date(Date.now() + 10 * 60 * 1000); // 10 min
+function signToken(user) {
+  return jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
 
-// когда включили обязаловку верификации (старые аккаунты ДО этой даты пускаем)
-const ENFORCE_FROM = new Date(process.env.EMAIL_VERIFY_ENFORCE_FROM || "2026-02-19T00:00:00.000Z");
+function makeCode() {
+  // 6 цифр
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
-// ✅ register -> создаём ТОЛЬКО PendingSignup, User НЕ создаём
-export const register = async (req, res) => {
+function hashCode(code) {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
+
+export async function register(req, res) {
   try {
     const { username, email, password } = req.body || {};
-    const u = (username || "").trim();
-    const em = (email || "").trim().toLowerCase();
-    const p = password || "";
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
 
-    if (!u || !em || !p) return res.status(400).json({ error: "Missing fields" });
+    const u = String(username).trim().toLowerCase();
+    const em = String(email).trim().toLowerCase();
+    const p = String(password);
 
-    // если такой User уже существует — значит это реальный аккаунт -> блокируем
+    // уже есть настоящий юзер? тогда всё, нельзя
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ email: em }, { username: u }] },
+      where: { OR: [{ username: u }, { email: em }] },
       select: { id: true },
     });
-    if (existingUser) return res.status(400).json({ error: "Username/email already taken" });
+    if (existingUser) return res.status(409).json({ error: "User already exists" });
 
-    // ✅ чтобы можно было пере-регаться, если закрыл страницу/ошибся:
-    // если pending уже есть по email или username — обновляем его и шлём новый код
-    const passwordHash = await bcrypt.hash(p, 10);
+    // уже есть pending? тогда перезапишем и отправим новый код
     const code = makeCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
 
-    const pendingSameEmail = await prisma.pendingSignup.findUnique({ where: { email: em } });
+    const passwordHash = await bcrypt.hash(p, 10);
+    const codeHash = hashCode(code);
 
-    if (pendingSameEmail) {
-      await prisma.pendingSignup.update({
-        where: { email: em },
-        data: {
-          username: u,
-          passwordHash,
-          code,
-          expiresAt: codeExpiresAt(),
-        },
-      });
-    } else {
-      // если занято username в pending — чистим его (чтобы не мешал)
-      await prisma.pendingSignup.deleteMany({ where: { username: u } });
-
-      await prisma.pendingSignup.create({
-        data: {
-          username: u,
-          email: em,
-          passwordHash,
-          code,
-          expiresAt: codeExpiresAt(),
-        },
-      });
-    }
+    const pending = await prisma.pendingUser.upsert({
+      where: { email: em },
+      update: {
+        username: u,
+        passwordHash,
+        codeHash,
+        expiresAt,
+      },
+      create: {
+        username: u,
+        email: em,
+        passwordHash,
+        codeHash,
+        expiresAt,
+      },
+      select: { id: true, email: true },
+    });
 
     await sendVerificationEmail(em, code);
 
-    return res.json({ needsVerification: true, email: em });
+    // ✅ НЕ логиним и НЕ создаём User
+    return res.json({ pendingId: pending.id, email: pending.email });
   } catch (e) {
     console.error("register error:", e);
     return res.status(500).json({ error: "Server error" });
   }
-};
+}
 
-export const verifyEmail = async (req, res) => {
+export async function resendEmail(req, res) {
   try {
-    const { email, code } = req.body || {};
-    const em = (email || "").trim().toLowerCase();
-    const c = (code || "").trim();
+    const { pendingId, email } = req.body || {};
+    if (!pendingId && !email) return res.status(400).json({ error: "Missing fields" });
 
-    if (!em || !c) return res.status(400).json({ error: "Missing email/code" });
+    const where = pendingId
+      ? { id: String(pendingId) }
+      : { email: String(email).trim().toLowerCase() };
 
-    const pending = await prisma.pendingSignup.findUnique({ where: { email: em } });
-    if (!pending) return res.status(400).json({ error: "No pending signup" });
-
-    if (pending.expiresAt < new Date()) {
-      // expired — удаляем, чтобы не блокировать повторную регу
-      await prisma.pendingSignup.delete({ where: { email: em } });
-      return res.status(400).json({ error: "Code expired" });
-    }
-
-    if (pending.code !== c) return res.status(400).json({ error: "Invalid code" });
-
-    // ✅ создаём реального User только сейчас
-    const created = await prisma.$transaction(async (tx) => {
-      const exists = await tx.user.findFirst({
-        where: { OR: [{ email: pending.email }, { username: pending.username }] },
-        select: { id: true },
-      });
-      if (exists) throw new Error("Username/email already taken");
-
-      const user = await tx.user.create({
-        data: {
-          username: pending.username,
-          email: pending.email,
-          passwordHash: pending.passwordHash,
-          isEmailVerified: true,
-        },
-      });
-
-      await tx.pendingSignup.delete({ where: { email: pending.email } });
-      return user;
-    });
-
-    const token = signToken(created);
-    return res.json({ token, user: created });
-  } catch (e) {
-    console.error("verifyEmail error:", e);
-    const msg = e?.message === "Username/email already taken" ? e.message : "Server error";
-    return res.status(400).json({ error: msg });
-  }
-};
-
-// ✅ ВАЖНО: имя экспорта должно совпадать с routes (resendEmail)
-export const resendEmail = async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    const em = (email || "").trim().toLowerCase();
-    if (!em) return res.status(400).json({ error: "Missing email" });
-
-    const pending = await prisma.pendingSignup.findUnique({ where: { email: em } });
-    if (!pending) return res.status(400).json({ error: "No pending signup" });
+    const p = await prisma.pendingUser.findUnique({ where });
+    if (!p) return res.status(404).json({ error: "Pending user not found" });
 
     const code = makeCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
 
-    await prisma.pendingSignup.update({
-      where: { email: em },
-      data: { code, expiresAt: codeExpiresAt() },
+    await prisma.pendingUser.update({
+      where: { id: p.id },
+      data: { codeHash: hashCode(code), expiresAt },
     });
 
-    await sendVerificationEmail(em, code);
+    await sendVerificationEmail(p.email, code);
+
     return res.json({ ok: true });
   } catch (e) {
     console.error("resendEmail error:", e);
     return res.status(500).json({ error: "Server error" });
   }
-};
+}
 
-export const login = async (req, res) => {
+export async function verifyEmail(req, res) {
   try {
-    // ✅ принимаем и старый формат {login,password}, и твой формат с фронта {email, username, password}
-    const body = req.body || {};
-    const l =
-      (body.login || body.email || body.username || "").toString().trim();
-    const p = (body.password || "").toString();
-
-    if (!l || !p) return res.status(400).json({ error: "Missing fields" });
-
-    const user = await prisma.user.findFirst({
-      where: { OR: [{ email: l.toLowerCase() }, { username: l }] },
-    });
-    if (!user) return res.status(400).json({ error: "Invalid credentials" });
-
-    const ok = await bcrypt.compare(p, user.passwordHash);
-    if (!ok) return res.status(400).json({ error: "Invalid credentials" });
-
-    // ✅ Старые аккаунты (созданы до ENFORCE_FROM) — пускаем даже если isEmailVerified=false
-    if (user.isEmailVerified === false) {
-      const createdAt = new Date(user.createdAt);
-      if (createdAt >= ENFORCE_FROM) {
-        return res.status(403).json({ error: "Email not verified", email: user.email });
-      }
+    const { pendingId, email, code } = req.body || {};
+    if ((!pendingId && !email) || !code) {
+      return res.status(400).json({ error: "Missing fields" });
     }
+
+    const where = pendingId
+      ? { id: String(pendingId) }
+      : { email: String(email).trim().toLowerCase() };
+
+    const pending = await prisma.pendingUser.findUnique({ where });
+    if (!pending) return res.status(400).json({ error: "Invalid code" });
+
+    if (pending.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ error: "Code expired" });
+    }
+
+    if (hashCode(String(code).trim()) !== pending.codeHash) {
+      return res.status(400).json({ error: "Invalid code" });
+    }
+
+    // ✅ создаём реального юзера только теперь
+    const user = await prisma.user.create({
+      data: {
+        username: pending.username,
+        email: pending.email,
+        password: pending.passwordHash,
+        isEmailVerified: true,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        avatarUrl: true,
+        displayName: true,
+        bio: true,
+        isPrivate: true,
+        createdAt: true,
+      },
+    });
+
+    await prisma.pendingUser.delete({ where: { id: pending.id } });
 
     const token = signToken(user);
     return res.json({ token, user });
   } catch (e) {
+    console.error("verifyEmail error:", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+}
+
+export async function login(req, res) {
+  try {
+    // поддержим оба формата (чтобы фронт не ломался)
+    const body = req.body || {};
+    const password = body.password ? String(body.password) : "";
+
+    const loginValue =
+      body.login || body.email || body.username || body.identifier || "";
+
+    const ident = String(loginValue).trim().toLowerCase();
+    if (!ident || !password) return res.status(400).json({ error: "Missing fields" });
+
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: ident }, { username: ident }] },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        password: true,
+        isEmailVerified: true,
+        avatarUrl: true,
+        displayName: true,
+        bio: true,
+        isPrivate: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) return res.status(400).json({ error: "Invalid credentials" });
+
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.status(400).json({ error: "Invalid credentials" });
+
+    // ✅ если старые юзеры — мы их уже SQL-ом сделали verified=true
+    if (user.isEmailVerified === false) {
+      return res.status(403).json({ error: "Email not verified" });
+    }
+
+    const token = signToken(user);
+    const { password: _pw, ...safeUser } = user;
+    return res.json({ token, user: safeUser });
+  } catch (e) {
     console.error("login error:", e);
     return res.status(500).json({ error: "Server error" });
   }
-};
-
-export const me = async (req, res) => {
-  try {
-    const id = req.user?.id;
-    if (!id) return res.status(401).json({ error: "Unauthorized" });
-
-    const user = await prisma.user.findUnique({ where: { id } });
-    return res.json({ user });
-  } catch (e) {
-    return res.status(500).json({ error: "Server error" });
-  }
-};
+}

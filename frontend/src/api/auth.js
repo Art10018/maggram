@@ -1,12 +1,7 @@
-import axios from "axios";
+import api from "./api";
 
-const api = axios.create({
-  baseURL: "/api",
-});
+export const registerApi = (data) => api.post("/auth/register", data);
+export const loginApi = (data) => api.post("/auth/login", data);
 
-export const registerApi = (payload) => api.post("/auth/register", payload);
-export const verifyEmailApi = (payload) => api.post("/auth/verify-email", payload);
-export const resendEmailApi = (payload) => api.post("/auth/resend-email", payload);
-export const loginApi = (payload) => api.post("/auth/login", payload);
-
-export default api;
+export const verifyEmailApi = (data) => api.post("/auth/verify-email", data);
+export const resendEmailApi = (data) => api.post("/auth/resend-email", data);
