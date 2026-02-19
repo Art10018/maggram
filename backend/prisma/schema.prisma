@@ -42,6 +42,9 @@ model User {
 
   incomingFollowRequests FollowRequest[] @relation("incoming_requests")
   outgoingFollowRequests FollowRequest[] @relation("outgoing_requests")
+
+  isEmailVerified  Boolean  @default(false)
+  emailVerifiedAt  DateTime?
 }
 
 model EmailVerificationCode {

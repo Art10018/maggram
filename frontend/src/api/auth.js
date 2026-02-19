@@ -1,13 +1,12 @@
-import http from "./http";
+import axios from "axios";
 
-export const registerApi = (payload) => http.post("/auth/register", payload);
+const api = axios.create({
+  baseURL: "/api",
+});
 
-// ВАЖНО: передаём email + username вместе
-export const loginApi = ({ login, password }) =>
-  http.post("/auth/login", {
-    email: login,
-    username: login,
-    password,
-  });
+export const registerApi = (payload) => api.post("/auth/register", payload);
+export const verifyEmailApi = (payload) => api.post("/auth/verify-email", payload);
+export const resendEmailApi = (payload) => api.post("/auth/resend-email", payload);
+export const loginApi = (payload) => api.post("/auth/login", payload);
 
-export const meApi = () => http.get("/auth/me");
+export default api;
