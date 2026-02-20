@@ -1,10 +1,6 @@
+// backend/src/routes/auth.routes.js
 import { Router } from "express";
-import {
-  login,
-  register,
-  verifyEmail,
-  resendEmail,
-} from "../controllers/auth.controller.js";
+import { login, register, verifyEmail, resendEmail } from "../controllers/auth.controller.js";
 
 const router = Router();
 

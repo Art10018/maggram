@@ -1,22 +1,18 @@
+// backend/src/utils/sendEmail.js
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function sendVerificationEmail(to, code) {
-  const from = process.env.EMAIL_FROM || "MagGram <onboarding@resend.dev>";
-
-  // простой текст — без html, чтоб не было сюрпризов
+export async function sendVerificationEmail(email, code) {
+  const from = process.env.RESEND_FROM || "MagGram <onboarding@resend.dev>";
   const subject = "MagGram — подтверждение email";
   const text = `Ваш код подтверждения: ${code}\nОн действует 10 минут.`;
 
-  const { error } = await resend.emails.send({
+  // Resend вернёт ошибку, если домен/from не верифицирован или ключ не тот
+  await resend.emails.send({
     from,
-    to: [to],
+    to: [email],
     subject,
     text,
   });
-
-  if (error) {
-    throw new Error(error?.message || "Failed to send email");
-  }
 }
