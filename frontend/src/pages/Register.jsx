@@ -1,7 +1,6 @@
-// frontend/src/pages/Register.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../api/api"; // <-- у тебя так обычно подключено, если иначе — поправь путь
+import api from "../lib/api"; // <-- ВАЖНО: проверь путь (у тебя есть src/lib/api.js)
 
 export default function Register() {
   const navigate = useNavigate();
@@ -19,20 +18,24 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const res = await api.post("/auth/register", {
+      const { data } = await api.post("/auth/register", {
         username,
         email,
         password,
       });
 
-      // Новый бэкенд возвращает { message, email }
-      if (res?.data?.email) {
-        navigate("/verify-email", { state: { email: res.data.email } });
+      // Новый флоу: register НЕ обязан отдавать token/user.
+      // Он должен как минимум подтвердить email для verify шага.
+      const pendingEmail =
+        data?.email || email; // если бэк не вернул email, берём тот что ввёл юзер
+
+      if (!pendingEmail) {
+        setError("Не удалось отправить код. Попробуйте ещё раз.");
         return;
       }
 
-      // если вдруг бекенд вернул что-то другое
-      setError("Не удалось отправить код. Попробуйте ещё раз.");
+      localStorage.setItem("pendingEmail", pendingEmail);
+      navigate("/verify-email", { state: { email: pendingEmail } });
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
@@ -48,8 +51,6 @@ export default function Register() {
   return (
     <div className="auth-page">
       <form className="auth-card" onSubmit={onSubmit}>
-        {/* оставь свой хедер/лого/тексты как было */}
-
         <input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -75,8 +76,6 @@ export default function Register() {
         </button>
 
         {error ? <div className="auth-error">{error}</div> : null}
-
-        {/* оставь ссылку "Есть аккаунт? Вход" как было */}
       </form>
     </div>
   );

