@@ -44,7 +44,6 @@ async function cleanupExpired() {
 // GET /api/chats
 export const getMyChats = async (req, res) => {
   try {
-    await cleanupExpired();
     const meId = req.user.id;
 
     const conversations = await prisma.conversation.findMany({

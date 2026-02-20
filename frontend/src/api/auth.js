@@ -1,4 +1,4 @@
-import api from "../lib/api"
+import api from "../lib/api";
 
 // register теперь НЕ обязан возвращать token/user.
 // Он может вернуть { pending: true, email } или просто { ok: true }.

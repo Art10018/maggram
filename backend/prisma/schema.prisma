@@ -191,6 +191,7 @@ model Message {
 }
 
 model MessageAttachment {
+  deleteAfter DateTime?
   id        String   @id @default(uuid())
   messageId String
   url       String
