@@ -75,6 +75,7 @@ export default function Register() {
     setAvatarFile(f);
   };
 
+  // ✅ ВАЖНО: async, иначе await ломает билд
   const onSubmit = async (e) => {
     if (e?.preventDefault) e.preventDefault();
     setErr("");
@@ -123,7 +124,7 @@ export default function Register() {
         } catch {}
       }
 
-      // ✅ Всегда уводим на подтверждение почты (твоя "новая система")
+      // ✅ Всегда уводим на подтверждение почты
       nav("/verify-email", { replace: true, state: { email: em } });
       return;
     } catch (e2) {
