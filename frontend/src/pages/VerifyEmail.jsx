@@ -1,44 +1,63 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { verifyEmailApi, resendEmailApi } from "../api/auth";
-import { useAuth } from "../store/auth";
 
 export default function VerifyEmail() {
-  const nav = useNavigate();
-  const { state } = useLocation();
-  const { login: authLogin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const email = useMemo(() => state?.email || "", [state]);
+  const initialEmail = useMemo(() => {
+    // 1) пытаемся взять email из state (если ты так навигируешь)
+    // 2) иначе из localStorage (мы будем класть туда при register)
+    // 3) иначе пусто
+    return (
+      location?.state?.email ||
+      localStorage.getItem("pendingEmail") ||
+      ""
+    );
+  }, [location]);
 
+  const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!email) {
-      // если вдруг сюда зашли напрямую
-      nav("/register");
+    if (initialEmail) {
+      localStorage.setItem("pendingEmail", initialEmail);
     }
-  }, [email, nav]);
+  }, [initialEmail]);
 
-  const onVerify = async () => {
+  const onVerify = async (e) => {
+    e.preventDefault();
     setError("");
-    setInfo("");
 
-    if (!code || code.trim().length < 4) {
-      setError("Invalid code");
+    if (!email || !code) {
+      setError("Введите email и код");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await verifyEmailApi({ email, code: code.trim() });
-      // backend вернёт token + user
-      authLogin(res.token, res.user);
-      nav("/");
-    } catch (e) {
-      const msg = e?.response?.data?.message || "Invalid code";
+      const res = await verifyEmailApi(email, code);
+
+      // ОЖИДАЕМ ОТ БЭКА: { token, user }
+      if (!res?.token || !res?.user) {
+        setError("Неверный ответ сервера: нет token/user");
+        return;
+      }
+
+      localStorage.setItem("token", res.token);
+      localStorage.setItem("user", JSON.stringify(res.user));
+      localStorage.removeItem("pendingEmail");
+
+      navigate("/", { replace: true });
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Ошибка подтверждения";
       setError(msg);
     } finally {
       setLoading(false);
@@ -47,48 +66,70 @@ export default function VerifyEmail() {
 
   const onResend = async () => {
     setError("");
-    setInfo("");
+
+    if (!email) {
+      setError("Введите email");
+      return;
+    }
+
     try {
-      setLoading(true);
-      await resendEmailApi({ email });
-      setInfo("Код отправлен ещё раз");
-    } catch (e) {
-      const msg = e?.response?.data?.message || "Server error";
+      setResendLoading(true);
+      await resendEmailApi(email);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Ошибка отправки кода";
       setError(msg);
     } finally {
-      setLoading(false);
+      setResendLoading(false);
     }
   };
 
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-logo">✨</div>
+        <h2>Подтверждение email</h2>
 
-        <h2 className="auth-title">Подтвердите email</h2>
-        <p className="auth-subtitle">Мы отправили код на {email}</p>
+        <form onSubmit={onVerify}>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            autoComplete="email"
+          />
 
-        <input
-          className="auth-input"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Введите код"
-          inputMode="numeric"
-        />
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Код из письма"
+            inputMode="numeric"
+          />
 
-        <button className="auth-btn" onClick={onVerify} disabled={loading}>
-          {loading ? "..." : "Далее"}
+          {error ? <div className="auth-error">{error}</div> : null}
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Проверка..." : "Подтвердить"}
+          </button>
+        </form>
+
+        <button
+          type="button"
+          className="auth-secondary"
+          onClick={onResend}
+          disabled={resendLoading}
+          style={{ marginTop: 10 }}
+        >
+          {resendLoading ? "Отправка..." : "Отправить код ещё раз"}
         </button>
 
-        <button className="auth-link" onClick={onResend} disabled={loading}>
-          Отправить код ещё раз
-        </button>
-
-        {info ? <div className="auth-info">{info}</div> : null}
-        {error ? <div className="auth-error">{error}</div> : null}
-
-        <button className="auth-link" onClick={() => nav("/register")}>
-          Передумал? Регистрация
+        <button
+          type="button"
+          className="auth-link"
+          onClick={() => navigate("/")}
+          style={{ marginTop: 10 }}
+        >
+          На главную
         </button>
       </div>
     </div>
