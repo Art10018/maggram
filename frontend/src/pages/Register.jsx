@@ -80,3 +80,4 @@ export default function Register() {
     </div>
   );
 }
+console.log("REGISTER DATA:", data);
