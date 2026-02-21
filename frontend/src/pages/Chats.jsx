@@ -11,9 +11,10 @@ function sameId(a, b) {
 
 const API_ORIGIN = "";
 
-// монолитные фоны (как у тебя сейчас)
-const ACCENT_BG = "rgba(170, 120, 255, 0.22)";
-const NEUTRAL_BG = "rgba(255,255,255,0.06)";
+// стили чатов — акцент и нейтральные пузыри
+const ACCENT_BG = "linear-gradient(135deg, rgba(140, 80, 255, 0.28), rgba(170, 100, 255, 0.18))";
+const NEUTRAL_BG = "rgba(255,255,255,0.08)";
+const CHAT_ACTIVE_BG = "rgba(140, 80, 255, 0.18)";
 const LOGO_PURPLE = "#592BC5";
 
 function useIsMobile(bp = 820) {
@@ -521,21 +522,21 @@ export default function Chats() {
   const ChatsListPane = (
     <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {/* search */}
-      <div style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ padding: 12, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Поиск"
+          placeholder="Поиск по чатам"
           style={{
             width: "100%",
-            padding: "10px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(0,0,0,0.25)",
-            color: "rgba(255,255,255,0.9)",
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.04)",
+            color: "rgba(255,255,255,0.95)",
             outline: "none",
-            fontWeight: 700,
-            fontSize: 16, // ✅ iOS no zoom
+            fontWeight: 600,
+            fontSize: 15,
           }}
         />
       </div>
@@ -570,25 +571,26 @@ export default function Chats() {
                 <button
                   key={c.id}
                   onClick={() => onPickChat(c.id)}
+                  className="chatListItem"
                   style={{
                     all: "unset",
                     cursor: "pointer",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: active ? ACCENT_BG : NEUTRAL_BG,
-                    padding: 12,
+                    borderRadius: 16,
+                    border: active ? "1px solid rgba(140, 80, 255, 0.35)" : "1px solid rgba(255,255,255,0.06)",
+                    background: active ? CHAT_ACTIVE_BG : NEUTRAL_BG,
+                    padding: 14,
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
                     overflow: "hidden",
                     minWidth: 0,
-
                     width: "100%",
                     boxSizing: "border-box",
-                    marginBottom: 10,   // вместо grid gap
+                    marginBottom: 8,
+                    transition: "background 0.15s ease, border-color 0.15s ease",
                   }}
                 >
-                  <Avatar username={title} avatarUrl={avatarUrl} size={44} />
+                  <Avatar username={title} avatarUrl={avatarUrl} size={48} />
 
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -786,13 +788,13 @@ export default function Chats() {
                     onTouchCancel={stopLongPress}
                     style={{
                       maxWidth: isMobile ? "88%" : "min(520px, 78%)",
-                      borderRadius: 14,
-                      padding: "10px 12px",
-                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: 18,
+                      padding: "12px 14px",
+                      border: mine ? "1px solid rgba(140, 80, 255, 0.2)" : "1px solid rgba(255,255,255,0.08)",
                       background: mine ? ACCENT_BG : NEUTRAL_BG,
                       outline: touchSelectedMessageId === m.id ? "2px solid rgba(255,255,255,0.5)" : "none",
-                      color: "rgba(255,255,255,0.92)",
-                      boxShadow: "0 10px 26px rgba(0,0,0,0.35)",
+                      color: "rgba(255,255,255,0.95)",
+                      boxShadow: mine ? "0 4px 20px rgba(100, 50, 200, 0.2)" : "0 2px 12px rgba(0,0,0,0.15)",
                       overflow: "hidden",
                       minWidth: 0,
                       wordBreak: "break-word",
@@ -1166,6 +1168,10 @@ export default function Chats() {
   // === layout root ===
   return (
     <div style={{ height: isMobile ? "calc(100dvh - env(safe-area-inset-bottom))" : "100%", minHeight: 0 }}>
+      <style>{`
+        .chatListItem:hover { background: rgba(255,255,255,0.08) !important; }
+        .chatListItem:active { opacity: 0.9; }
+      `}</style>
       {/* Важно: на мобилке показываем либо список, либо чат */}
       {isMobile ? (
         selectedId ? (

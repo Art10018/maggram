@@ -89,7 +89,6 @@ export default function BottomNav() {
   if (isMobile && isChatRoom) return null;
 
   const linkStyle = ({ isActive }) => ({
-    all: "unset",
     cursor: "pointer",
     display: "grid",
     placeItems: "center",
@@ -98,64 +97,87 @@ export default function BottomNav() {
     borderRadius: 16,
     color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)",
     transition: "color 120ms ease, transform 120ms ease",
+    textDecoration: "none",
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    font: "inherit",
   });
 
   return (
-    <nav
-      style={{
-        display: isMobile ? "flex" : "none",
-        position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
+    <>
+      <style>{`
+        .bottomNavLink { transition: transform 120ms ease; }
+        .bottomNavLink:active { transform: scale(0.88); }
+      `}</style>
+      <nav
+        style={{
+          display: isMobile ? "flex" : "none",
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
 
-        height: 68,
-        paddingBottom: "env(safe-area-inset-bottom)",
-        background: "#0b0b0f",
-        borderTop: "1px solid rgba(255,255,255,0.08)",
-        zIndex: 60,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {/* 5 кнопок строго по центру */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18 }}>
-        <NavLink to="/" style={linkStyle} title="Feed">
-          <Icon>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M5 6.5h14M5 12h14M5 17.5h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </Icon>
-        </NavLink>
+          height: 68,
+          paddingBottom: "env(safe-area-inset-bottom)",
+          background: "#0b0b0f",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          zIndex: 60,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18 }}>
+          <NavLink className="bottomNavLink" to="/" style={linkStyle} title="Feed">
+            <Icon>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M5 6.5h14M5 12h14M5 17.5h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </Icon>
+          </NavLink>
 
-        <NavLink to="/search" style={linkStyle} title="Search">
-          <Icon>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" strokeWidth="2" />
-              <path d="M16.5 16.5 21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </Icon>
-        </NavLink>
+          <NavLink className="bottomNavLink" to="/search" style={linkStyle} title="Search">
+            <Icon>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" strokeWidth="2" />
+                <path d="M16.5 16.5 21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </Icon>
+          </NavLink>
 
-        {/* Profile в центре */}
-        <div style={{ width: 48, height: 48, display: "grid", placeItems: "center" }}>
-          <AvatarBtn user={user} size={40} onClick={() => navigate("/profile")} />
+          <button
+            type="button"
+            className="bottomNavLink"
+            onClick={() => navigate("/profile")}
+            title="Profile"
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              display: "grid",
+              placeItems: "center",
+              width: 48,
+              height: 48,
+              transition: "transform 120ms ease",
+            }}
+          >
+            <AvatarBtn user={user} size={40} />
+          </button>
+
+          <NavLink className="bottomNavLink" to="/chats" style={linkStyle} title="Chats">
+            <Icon>
+              <ChatNavIcon />
+            </Icon>
+          </NavLink>
+
+          <NavLink className="bottomNavLink" to="/new-post" style={linkStyle} title="New post">
+            <Icon>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </Icon>
+          </NavLink>
         </div>
-
-        <NavLink to="/chats" style={linkStyle} title="Chats">
-          <Icon>
-            <ChatNavIcon />
-          </Icon>
-        </NavLink>
-
-        <NavLink to="/new-post" style={linkStyle} title="New post">
-          <Icon>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </Icon>
-        </NavLink>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 }

@@ -12,6 +12,52 @@ function buildSrc(u) {
   return `${API_ORIGIN}/${u}`;
 }
 
+function hashColor(str = "") {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 65% 55%)`;
+}
+
+function HeaderAvatar({ peer, size = 42 }) {
+  const name = peer?.displayName || peer?.username || "?";
+  const letter = name[0].toUpperCase();
+  const src = peer?.avatarUrl ? buildSrc(peer.avatarUrl) : "";
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          objectFit: "cover",
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.06)",
+        }}
+        onError={(e) => e.currentTarget.style.display = "none"}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        display: "grid",
+        placeItems: "center",
+        fontWeight: 800,
+        color: "white",
+        background: hashColor(name),
+        border: "1px solid rgba(255,255,255,0.12)",
+      }}
+    >
+      {letter}
+    </div>
+  );
+}
+
 function fmtTime(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
@@ -124,33 +170,19 @@ export default function ChatRoom() {
       {/* header */}
       <div
         style={{
-          padding: 14,
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          padding: "12px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(0,0,0,0.15)",
           display: "flex",
           alignItems: "center",
-          gap: 12,
-          minHeight: 64,
+          gap: 14,
+          minHeight: 60,
         }}
       >
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 999,
-            background: "rgba(170,70,255,0.25)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            display: "grid",
-            placeItems: "center",
-            color: "rgba(255,255,255,0.92)",
-            fontWeight: 950,
-          }}
-        >
-          {(title?.[0] || "C").toUpperCase()}
-        </div>
-
-        <div style={{ display: "grid", gap: 2 }}>
-          <div style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>{title}</div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 800, fontSize: 12 }}>был(а) недавно</div>
+        <HeaderAvatar peer={peer} size={44} />
+        <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, color: "rgba(255,255,255,0.95)", fontSize: 17 }}>{title}</div>
+          <div style={{ color: "rgba(255,255,255,0.5)", fontWeight: 600, fontSize: 12 }}>был(а) недавно</div>
         </div>
       </div>
 
@@ -197,15 +229,16 @@ export default function ChatRoom() {
                 <div
                   style={{
                     maxWidth: "min(520px, 72%)",
-                    borderRadius: 14,
-                    padding: "10px 12px",
+                    borderRadius: 18,
+                    padding: "12px 14px",
                     background: mine
-                      ? "linear-gradient(180deg, rgba(170,70,255,0.35), rgba(170,70,255,0.18))"
-                      : "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    color: "rgba(255,255,255,0.92)",
+                      ? "linear-gradient(135deg, rgba(140, 80, 255, 0.32), rgba(170, 100, 255, 0.2))"
+                      : "rgba(255,255,255,0.08)",
+                    border: mine ? "1px solid rgba(140, 80, 255, 0.2)" : "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(255,255,255,0.95)",
                     display: "grid",
                     gap: 8,
+                    boxShadow: mine ? "0 4px 20px rgba(100, 50, 200, 0.18)" : "0 2px 12px rgba(0,0,0,0.12)",
                   }}
                 >
                   {m.text ? (
@@ -295,8 +328,9 @@ export default function ChatRoom() {
       {/* input */}
       <div
         style={{
-          padding: 12,
-          borderTop: "1px solid rgba(255,255,255,0.08)",
+          padding: "12px 14px",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(0,0,0,0.12)",
           display: "flex",
           alignItems: "center",
           gap: 10,
@@ -304,17 +338,18 @@ export default function ChatRoom() {
       >
         <label
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.06)",
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.05)",
             display: "grid",
             placeItems: "center",
             cursor: "pointer",
             userSelect: "none",
+            fontSize: 18,
           }}
-          title="Attach"
+          title="Прикрепить"
         >
           📎
           <input multiple type="file" style={{ display: "none" }} onChange={onPickFiles} />
@@ -326,14 +361,15 @@ export default function ChatRoom() {
           placeholder="Сообщение..."
           style={{
             flex: 1,
-            height: 42,
-            padding: "0 14px",
+            height: 44,
+            padding: "0 16px",
             borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(0,0,0,0.25)",
-            color: "rgba(255,255,255,0.92)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.04)",
+            color: "rgba(255,255,255,0.95)",
             outline: "none",
-            fontWeight: 800,
+            fontWeight: 600,
+            fontSize: 15,
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -344,19 +380,24 @@ export default function ChatRoom() {
         />
 
         <button
+          type="button"
           onClick={onSend}
           style={{
-            height: 42,
-            padding: "0 16px",
+            height: 44,
+            padding: "0 18px",
             borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(170,70,255,0.18)",
-            color: "rgba(255,255,255,0.92)",
-            fontWeight: 950,
+            border: "1px solid rgba(140, 80, 255, 0.3)",
+            background: "linear-gradient(135deg, rgba(140, 80, 255, 0.35), rgba(170, 100, 255, 0.2))",
+            color: "rgba(255,255,255,0.98)",
+            fontWeight: 800,
             cursor: "pointer",
+            transition: "opacity 0.15s ease",
           }}
+          onMouseDown={(e) => (e.currentTarget.style.opacity = "0.9")}
+          onMouseUp={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
         >
-          Send
+          Отправить
         </button>
       </div>
 

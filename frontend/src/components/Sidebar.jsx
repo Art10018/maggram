@@ -100,6 +100,7 @@ export default function Sidebar() {
       {/* ===== DESKTOP: левый sidebar (ТОЛЬКО ПК) ===== */}
       <aside className="sidebarDesktop">
         <button
+          className="sidebarNavBtn"
           onClick={() => navigate("/profile")}
           title="My profile"
           style={{
@@ -107,6 +108,9 @@ export default function Sidebar() {
             cursor: "pointer",
             marginTop: 14,
             marginBottom: 6,
+            display: "grid",
+            placeItems: "center",
+            transition: "transform 120ms ease",
           }}
         >
           <AvatarMini user={user} size={46} />
@@ -114,7 +118,7 @@ export default function Sidebar() {
 
         <div style={{ height: 6 }} />
 
-        <NavLink to="/" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Feed">
+        <NavLink className="navMenuLink" to="/" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Feed">
           <Icon>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path d="M5 6.5h14M5 12h14M5 17.5h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -122,7 +126,7 @@ export default function Sidebar() {
           </Icon>
         </NavLink>
 
-        <NavLink to="/search" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Search">
+        <NavLink className="navMenuLink" to="/search" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Search">
           <Icon>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" strokeWidth="2" />
@@ -131,13 +135,13 @@ export default function Sidebar() {
           </Icon>
         </NavLink>
 
-        <NavLink to="/chats" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Chats">
+        <NavLink className="navMenuLink" to="/chats" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Chats">
           <Icon>
             <ChatNavIcon />
           </Icon>
         </NavLink>
 
-        <NavLink to="/new-post" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="New post">
+        <NavLink className="navMenuLink" to="/new-post" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="New post">
           <Icon>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -156,7 +160,7 @@ export default function Sidebar() {
 
           {/* 4 кнопки строго по центру */}
           <div className="mobileBtns">
-            <NavLink to="/" style={linkStyle} title="Feed">
+            <NavLink className="navMenuLink" to="/" style={linkStyle} title="Feed">
               <Icon>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <path d="M5 6.5h14M5 12h14M5 17.5h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -164,7 +168,7 @@ export default function Sidebar() {
               </Icon>
             </NavLink>
 
-            <NavLink to="/search" style={linkStyle} title="Search">
+            <NavLink className="navMenuLink" to="/search" style={linkStyle} title="Search">
               <Icon>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" strokeWidth="2" />
@@ -173,13 +177,13 @@ export default function Sidebar() {
               </Icon>
             </NavLink>
 
-            <NavLink to="/chats" style={linkStyle} title="Chats">
+            <NavLink className="navMenuLink" to="/chats" style={linkStyle} title="Chats">
               <Icon>
                 <ChatNavIcon />
               </Icon>
             </NavLink>
 
-            <NavLink to="/new-post" style={linkStyle} title="New post">
+            <NavLink className="navMenuLink" to="/new-post" style={linkStyle} title="New post">
               <Icon>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -188,9 +192,9 @@ export default function Sidebar() {
             </NavLink>
           </div>
 
-          {/* аватар справа, отступ до кнопок = gap кнопок */}
+          {/* аватар справа */}
           <button
-            className="mobileAvatarBtn"
+            className="mobileAvatarBtn sidebarNavBtn"
             onClick={() => navigate("/profile")}
             title="My profile"
             aria-label="Profile"
@@ -202,6 +206,11 @@ export default function Sidebar() {
 
       {/* ===== CSS (внутри компонента, чтобы было 1 файлом) ===== */}
       <style>{`
+        /* Анимация нажатия на все пункты меню (иконки + аватар) */
+        .navMenuLink { transition: transform 120ms ease; }
+        .navMenuLink:active { transform: scale(0.88); }
+        .sidebarNavBtn:active { transform: scale(0.88); }
+
         /* ПК: показываем левый sidebar, скрываем нижний */
         @media (min-width: 901px){
           .sidebarDesktop{
