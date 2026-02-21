@@ -67,6 +67,15 @@ function Icon({ children }) {
   );
 }
 
+function ChatNavIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 6.5c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2v5c0 1.1-.9 2-2 2H9l-3.2 2.4c-.5.4-1.2 0-1.2-.6V6.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+      <path d="M10 15.5h4l3.2 2.4c.5.4 1.2 0 1.2-.6v-6.8c0-1.1-.9-2-2-2H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 const linkStyle = ({ isActive }) => ({
   display: "grid",
   placeItems: "center",
@@ -124,14 +133,7 @@ export default function Sidebar() {
 
         <NavLink to="/chats" style={linkStyle} onMouseEnter={onEnter} onMouseLeave={onLeave} title="Chats">
           <Icon>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 5.5C4 4.12 5.12 3 6.5 3h11C18.88 3 20 4.12 20 5.5v7C20 13.88 18.88 15 17.5 15H10l-4.2 3.15c-.53.4-1.3.02-1.3-.64V5.5Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChatNavIcon />
           </Icon>
         </NavLink>
 
@@ -173,14 +175,7 @@ export default function Sidebar() {
 
             <NavLink to="/chats" style={linkStyle} title="Chats">
               <Icon>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M21 14a4 4 0 0 1-4 4H8l-5 3V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChatNavIcon />
               </Icon>
             </NavLink>
 
