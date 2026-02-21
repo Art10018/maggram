@@ -169,6 +169,11 @@ function extractImages(post) {
   return [];
 }
 
+function sameId(a, b) {
+  if (a === null || a === undefined || b === null || b === undefined) return false;
+  return String(a) === String(b);
+}
+
 function PhotoGrid({ images }) {
   const list = images.slice(0, 8);
   const extra = Math.max(0, images.length - list.length);
@@ -435,7 +440,7 @@ export default function Feed() {
                 const isExpanded = !!expanded[p.id];
                 const shownText = isExpanded || !isLong ? fullText : fullText.slice(0, 220).trimEnd() + "…";
                 const when = timeAgo(p.createdAt);
-                const isMyPost = (p.author?.id || p.authorId) === me?.id;
+                const isMyPost = sameId(p.author?.id ?? p.authorId, me?.id);
 
                 return (
                   <div
@@ -595,7 +600,7 @@ export default function Feed() {
                         ) : (
                           <div style={{ display: "grid", gap: 10 }}>
                             {commList.map((c) => {
-                              const isMyComment = c.author?.id === me?.id;
+                              const isMyComment = sameId(c.author?.id ?? c.authorId, me?.id);
                               return (
                               <div key={c.id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                                 <Avatar username={c.author?.username} avatarUrl={c.author?.avatarUrl} size={34} />
