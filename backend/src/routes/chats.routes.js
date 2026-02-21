@@ -7,6 +7,8 @@ import {
   getOrCreateWithUser,
   getMessages,
   sendMessage,
+  updateMyMessage,
+  deleteMyMessage,
   downloadAttachment,
   attachmentMeta,
 } from "../controllers/chats.controller.js";
@@ -22,6 +24,8 @@ router.post("/direct/:userId", authMiddleware, getOrCreateWithUser);
 // сообщения
 router.get("/:id/messages", authMiddleware, getMessages);
 router.post("/:id/messages", authMiddleware, chatUpload, sendMessage);
+router.patch("/messages/:id", authMiddleware, updateMyMessage);
+router.delete("/messages/:id", authMiddleware, deleteMyMessage);
 
 // вложения
 router.get("/attachments/:id/meta", authMiddleware, attachmentMeta);
