@@ -12,16 +12,7 @@ import VerifyEmail from "./pages/VerifyEmail.jsx";
 
 import Chats from "./pages/Chats.jsx";
 import ChatRoom from "./pages/ChatRoom.jsx";
-
-// заглушка под будущие экраны
-function ComingSoon({ title }) {
-  return (
-    <div style={{ color: "rgba(255,255,255,0.85)" }}>
-      <h2 style={{ marginTop: 0 }}>{title}</h2>
-      <div style={{ opacity: 0.7 }}>Soon...</div>
-    </div>
-  );
-}
+import Search from "./pages/Search.jsx";
 
 function Shell() {
   return (
@@ -51,7 +42,7 @@ export default function App() {
           <Route path="/new-post" element={<NewPost />} />
           <Route path="/settings" element={<Settings />} />
 
-          <Route path="/search" element={<ComingSoon title="Search" />} />
+          <Route path="/search" element={<Search />} />
 
           {/* ✅ ЧАТЫ: layout + вложенный роут комнаты */}
           <Route path="/chats" element={<Chats />}>

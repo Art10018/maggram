@@ -12,6 +12,7 @@ import commentsRoutes from "./routes/comments.routes.js";
 import feedRoutes from "./routes/feed.routes.js";
 import requestsRoutes from "./routes/requests.routes.js";
 import chatsRoutes from "./routes/chats.routes.js";
+import searchRoutes from "./routes/search.routes.js";
 
 const app = express();
 
@@ -38,5 +39,6 @@ app.use("/api/requests", requestsRoutes);
 
 // ✅ чаты
 app.use("/api/chats", chatsRoutes);
+app.use("/api/search", searchRoutes);
 
 export default app;
