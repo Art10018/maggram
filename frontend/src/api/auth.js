@@ -7,8 +7,20 @@ export const registerApi = async (username, email, password) => {
   return data;
 };
 
-// login как раньше: { token, user }
-export const loginApi = async (login, password) => {
+// login: поддерживает оба вызова
+// loginApi("username_or_email", "password")
+// loginApi({ login, password })
+export const loginApi = async (loginOrPayload, passwordArg) => {
+  const login =
+    typeof loginOrPayload === "object" && loginOrPayload !== null
+      ? loginOrPayload.login || loginOrPayload.username || loginOrPayload.email || ""
+      : loginOrPayload || "";
+
+  const password =
+    typeof loginOrPayload === "object" && loginOrPayload !== null
+      ? loginOrPayload.password || ""
+      : passwordArg || "";
+
   const { data } = await api.post("/auth/login", { login, password });
   return data;
 };

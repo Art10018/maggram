@@ -35,9 +35,9 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await loginApi({ login: l, password: p });
-      const token = res.data?.token;
-      const user = res.data?.user;
+      const res = await loginApi(l, p);
+      const token = res?.token;
+      const user = res?.user;
 
       if (!token || !user) throw new Error("Login response missing token/user");
 

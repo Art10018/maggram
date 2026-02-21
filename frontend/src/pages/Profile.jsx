@@ -76,6 +76,11 @@ function extractImages(post) {
   return [];
 }
 
+function sameId(a, b) {
+  if (a === null || a === undefined || b === null || b === undefined) return false;
+  return String(a) === String(b);
+}
+
 // ---------- UI ----------
 function Avatar({ username, avatarUrl, size = 44 }) {
   const letter = (username?.[0] || "?").toUpperCase();
@@ -273,6 +278,8 @@ function PhotoGrid({ images }) {
 // ---------- API wrappers ----------
 const getUserByIdApi = (id) => http.get(`/users/${id}`);
 const getUserPostsByIdApi = (id) => http.get(`/users/${id}/posts`);
+const getFollowersApi = (id) => http.get(`/users/${id}/followers`);
+const getFollowingApi = (id) => http.get(`/users/${id}/following`);
 
 const getFollowStatusApi = (targetId) => http.get(`/follows/status/${targetId}`);
 const toggleFollowApi = (targetId) => http.post(`/follows/${targetId}`);
@@ -281,6 +288,8 @@ const toggleLikeApi = (postId) => http.post(`/likes/${postId}`);
 
 const getCommentsApi = (postId) => http.get(`/comments/${postId}`);
 const createCommentApi = (postId, payload) => http.post(`/comments/${postId}`, payload);
+const updatePostApi = (postId, payload) => http.patch(`/posts/${postId}`, payload);
+const deletePostApi = (postId) => http.delete(`/posts/${postId}`);
 
 // ---------- component ----------
 export default function Profile() {
@@ -311,6 +320,16 @@ export default function Profile() {
 
   // меню в личном профиле
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const [postMenuOpen, setPostMenuOpen] = useState({});
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [editingPostText, setEditingPostText] = useState("");
+
+  const [followListOpen, setFollowListOpen] = useState(false);
+  const [followListTitle, setFollowListTitle] = useState("");
+  const [followListLoading, setFollowListLoading] = useState(false);
+  const [followListErr, setFollowListErr] = useState("");
+  const [followListUsers, setFollowListUsers] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -536,8 +555,58 @@ function LogoutIcon({ size = 18 }) {
     [commentText]
   );
 
-  const onLogout = () => {
-    setMenuOpen(false);
+  const onSavePostEdit = useCallback(async (postId) => {
+    const code = editingPostText.trim();
+    if (!code) return;
+
+    try {
+      const res = await updatePostApi(postId, { code });
+      const updated = res.data;
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, code: updated.code } : p)));
+      setEditingPostId(null);
+      setEditingPostText("");
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, [editingPostText]);
+
+  const onDeletePost = useCallback(async (postId) => {
+    if (!window.confirm("Удалить пост?")) return;
+
+    try {
+      await deletePostApi(postId);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setProfile((prev) => {
+        if (!prev?._count) return prev;
+        return {
+          ...prev,
+          _count: { ...prev._count, posts: Math.max(0, (prev._count.posts ?? 0) - 1) },
+        };
+      });
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, []);
+
+  const openFollowList = useCallback(async (mode) => {
+    if (!targetId) return;
+    setFollowListTitle(mode === "followers" ? "Подписчики" : "Подписки");
+    setFollowListOpen(true);
+    setFollowListLoading(true);
+    setFollowListErr("");
+    setFollowListUsers([]);
+
+    try {
+      const res = mode === "followers" ? await getFollowersApi(targetId) : await getFollowingApi(targetId);
+      setFollowListUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (e) {
+      setFollowListErr(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    } finally {
+      setFollowListLoading(false);
+    }
+  }, [targetId]);
+
+  const onLogout = () => {    setMenuOpen(false);
     logout();
     navigate("/login");
   };
@@ -590,12 +659,34 @@ function LogoutIcon({ size = 18 }) {
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800 }}>
                 <Icon><PostsIcon /></Icon> {counts.posts ?? 0}
               </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800 }}>
+              <button
+                onClick={() => openFollowList("followers")}
+                style={{
+                  all: "unset",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+                title="Показать подписчиков"
+              >
                 <Icon><FollowersIcon /></Icon> {counts.followers ?? 0}
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800 }}>
+              </button>
+              <button
+                onClick={() => openFollowList("following")}
+                style={{
+                  all: "unset",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+                title="Показать подписки"
+              >
                 <Icon><FollowingIcon /></Icon> {counts.following ?? 0}
-              </span>
+              </button>
             </div>
 
             {/* ❗️ВАЖНО: тут БОЛЬШЕ НЕТ кнопок Follow/Chat — они справа */}
@@ -803,6 +894,7 @@ function LogoutIcon({ size = 18 }) {
                 const shownText = isExpanded || !isLong ? fullText : fullText.slice(0, 220).trimEnd() + "…";
 
                 const when = timeAgo(p.createdAt);
+                const isMyPost = sameId(p.author?.id ?? p.authorId, me?.id);
 
                 return (
                   <div
@@ -815,28 +907,48 @@ function LogoutIcon({ size = 18 }) {
                     }}
                   >
                     {/* header */}
-                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                      <Avatar username={p.author?.username} avatarUrl={p.author?.avatarUrl} size={44} />
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        <Avatar username={p.author?.username} avatarUrl={p.author?.avatarUrl} size={44} />
 
-                      <div style={{ display: "grid", gap: 2 }}>
-                        <Link
-                          to={`/profile/${p.author?.id || p.authorId || ""}`}
-                          style={{
-                            fontWeight: 900,
-                            color: "rgba(255,255,255,0.92)",
-                            textDecoration: "none",
-                            width: "fit-content",
-                          }}
-                        >
-                          {p.author?.displayName || p.author?.username || "unknown"}
-                        </Link>
+                        <div style={{ display: "grid", gap: 2 }}>
+                          <Link
+                            to={`/profile/${p.author?.id || p.authorId || ""}`}
+                            style={{
+                              fontWeight: 900,
+                              color: "rgba(255,255,255,0.92)",
+                              textDecoration: "none",
+                              width: "fit-content",
+                            }}
+                          >
+                            {p.author?.displayName || p.author?.username || "unknown"}
+                          </Link>
 
-                        {p.language ? (
-                          <div style={{ color: "rgba(255,255,255,0.72)", fontWeight: 700 }}>
-                            Lang: {p.language}
-                          </div>
-                        ) : null}
+                          {p.language ? (
+                            <div style={{ color: "rgba(255,255,255,0.72)", fontWeight: 700 }}>
+                              Lang: {p.language}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
+
+                      {isMyPost ? (
+                        <div style={{ position: "relative" }}>
+                          <button
+                            onClick={() => setPostMenuOpen((m) => ({ ...m, [p.id]: !m[p.id] }))}
+                            style={{ border: 0, background: "transparent", color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: 20 }}
+                            title="Меню"
+                          >
+                            ⋯
+                          </button>
+                          {postMenuOpen[p.id] ? (
+                            <div style={{ position: "absolute", right: 0, top: 26, zIndex: 5, minWidth: 150, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(20,20,24,0.95)", display: "grid" }}>
+                              <button onClick={() => { setEditingPostId(p.id); setEditingPostText(p.code || ""); setPostMenuOpen((m) => ({ ...m, [p.id]: false })); }} style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "white", fontWeight: 700 }}>Редактировать</button>
+                              <button onClick={() => { setPostMenuOpen((m) => ({ ...m, [p.id]: false })); onDeletePost(p.id); }} style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "#ff8f8f", fontWeight: 700 }}>Удалить</button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* photos */}
@@ -847,7 +959,15 @@ function LogoutIcon({ size = 18 }) {
                     ) : null}
 
                     {/* text + показать ещё */}
-                    {fullText ? (
+                    {editingPostId === p.id ? (
+                      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        <textarea value={editingPostText} onChange={(e) => setEditingPostText(e.target.value)} rows={5} style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.25)", color: "white", padding: 10 }} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => onSavePostEdit(p.id)} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)", color: "white", padding: "8px 12px", cursor: "pointer" }}>Сохранить</button>
+                          <button onClick={() => { setEditingPostId(null); setEditingPostText(""); }} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.8)", padding: "8px 12px", cursor: "pointer" }}>Отмена</button>
+                        </div>
+                      </div>
+                    ) : fullText ? (
                       <div style={{ marginTop: 10 }}>
                         <pre
                           style={{
@@ -967,6 +1087,46 @@ function LogoutIcon({ size = 18 }) {
           </div>
         )}
       </div>
+
+      {followListOpen ? (
+        <div
+          onClick={() => setFollowListOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "min(560px, 96vw)", maxHeight: "80vh", overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(16,16,20,0.98)", display: "grid", gridTemplateRows: "auto 1fr" }}
+          >
+            <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.95)" }}>{followListTitle}</div>
+              <button onClick={() => setFollowListOpen(false)} style={{ border: 0, background: "transparent", color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: 20 }}>×</button>
+            </div>
+
+            <div style={{ padding: 12, overflowY: "auto", display: "grid", gap: 8 }}>
+              {followListLoading ? <div style={{ color: "rgba(255,255,255,0.7)" }}>Loading...</div> : null}
+              {followListErr ? <div style={{ color: "crimson" }}>{followListErr}</div> : null}
+              {!followListLoading && !followListErr && followListUsers.length === 0 ? (
+                <div style={{ color: "rgba(255,255,255,0.7)" }}>Пусто</div>
+              ) : null}
+
+              {!followListLoading && !followListErr ? followListUsers.map((u) => (
+                <Link
+                  key={u.id}
+                  to={`/profile/${u.id}`}
+                  onClick={() => setFollowListOpen(false)}
+                  style={{ textDecoration: "none", color: "inherit", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", padding: 10, display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.03)" }}
+                >
+                  <Avatar username={u.username} avatarUrl={u.avatarUrl} size={36} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: "rgba(255,255,255,0.93)", fontWeight: 800 }}>{u.displayName || u.username || "unknown"}</div>
+                    <div style={{ color: "rgba(255,255,255,0.62)", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis" }}>@{u.username || "unknown"}</div>
+                  </div>
+                </Link>
+              )) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <style>{`
         .statBtn{

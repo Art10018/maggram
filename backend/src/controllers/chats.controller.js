@@ -8,7 +8,14 @@ const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 // url хранится как "/uploads/chats/...."
 function buildAbsoluteUploadPath(url) {
   const rel = String(url || "").replace(/^\/uploads\//, "");
-  return path.join(UPLOADS_ROOT, rel);
+  const abs = path.resolve(UPLOADS_ROOT, rel);
+
+  // защита от path traversal
+  if (!abs.startsWith(path.resolve(UPLOADS_ROOT) + path.sep) && abs !== path.resolve(UPLOADS_ROOT)) {
+    return null;
+  }
+
+  return abs;
 }
 
 // чистим все вложения, у которых истёк deleteAfter
@@ -25,14 +32,16 @@ async function cleanupExpired() {
   for (const a of expired) {
     try {
       const abs = buildAbsoluteUploadPath(a.url);
-      if (fs.existsSync(abs)) fs.unlinkSync(abs);
+      if (abs && fs.existsSync(abs)) fs.unlinkSync(abs);
     } catch {}
   }
 
   if (expired.length) {
+    const expiredUrls = [...new Set(expired.map((x) => x.url).filter(Boolean))];
+
     // удаляем download-логи и сами attachment-ы
     await prisma.attachmentDownload.deleteMany({
-      where: { attachmentId: { in: expired.map((x) => x.id) } },
+      where: { url: { in: expiredUrls } },
     });
 
     await prisma.messageAttachment.deleteMany({
@@ -279,6 +288,92 @@ export const sendMessage = async (req, res) => {
   }
 };
 
+// PATCH /api/chats/messages/:id
+export const updateMyMessage = async (req, res) => {
+  try {
+    await cleanupExpired();
+    const meId = req.user.id;
+    const messageId = req.params.id;
+    const text = (req.body?.text ?? "").toString().trim();
+
+    if (!text) return res.status(400).json({ error: "text is required" });
+
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: { attachments: { select: { id: true } } },
+    });
+
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (message.senderId !== meId) return res.status(403).json({ error: "No access" });
+    if ((message.attachments || []).length > 0) {
+      return res.status(400).json({ error: "Messages with attachments are not editable" });
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { text },
+      include: {
+        sender: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+        attachments: { select: { id: true, originalName: true, url: true, mimeType: true, size: true, createdAt: true } },
+      },
+    });
+
+    return res.json({
+      ...updated,
+      attachments: (updated.attachments || []).map((a) => ({
+        id: a.id,
+        fileName: a.originalName,
+        url: a.url,
+        mime: a.mimeType,
+        size: a.size,
+        createdAt: a.createdAt,
+      })),
+    });
+  } catch (e) {
+    console.error("updateMyMessage error:", e);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// DELETE /api/chats/messages/:id
+export const deleteMyMessage = async (req, res) => {
+  try {
+    await cleanupExpired();
+    const meId = req.user.id;
+    const messageId = req.params.id;
+
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        attachments: { select: { id: true, url: true } },
+      },
+    });
+
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (message.senderId !== meId) return res.status(403).json({ error: "No access" });
+
+    const urls = [...new Set((message.attachments || []).map((a) => a.url).filter(Boolean))];
+    for (const a of message.attachments || []) {
+      const abs = buildAbsoluteUploadPath(a.url);
+      if (abs && fs.existsSync(abs)) {
+        try {
+          fs.unlinkSync(abs);
+        } catch {}
+      }
+    }
+
+    if (urls.length) {
+      await prisma.attachmentDownload.deleteMany({ where: { url: { in: urls } } });
+    }
+
+    await prisma.message.delete({ where: { id: messageId } });
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("deleteMyMessage error:", e);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 // GET /api/chats/attachments/:id/download
 // 1) пользователь должен скачать
 // 2) после первого скачивания ставим deleteAfter = now + 2 days
@@ -302,25 +397,27 @@ export const downloadAttachment = async (req, res) => {
     });
     if (!membership) return res.status(403).json({ error: "No access" });
 
-    // лог скачивания (уникально на user+attachment)
-    await prisma.attachmentDownload.upsert({
-      where: { attachmentId_userId: { attachmentId: a.id, userId: meId } },
-      update: {},
-      create: { attachmentId: a.id, userId: meId },
+    // лог скачивания
+    const existingDownloads = await prisma.attachmentDownload.count({
+      where: { url: a.url },
+    });
+
+    await prisma.attachmentDownload.create({
+      data: { userId: meId, url: a.url },
     });
 
     // если это первое скачивание вообще — ставим TTL 2 дня
     const now = new Date();
-    if (!a.firstDownloadedAt) {
+    if (!a.deleteAfter && existingDownloads === 0) {
       const deleteAfter = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
       await prisma.messageAttachment.update({
         where: { id: a.id },
-        data: { firstDownloadedAt: now, deleteAfter },
+        data: { deleteAfter },
       });
     }
 
     const abs = buildAbsoluteUploadPath(a.url);
-    if (!fs.existsSync(abs)) return res.status(404).json({ error: "File missing on server" });
+    if (!abs || !fs.existsSync(abs)) return res.status(404).json({ error: "File missing on server" });
 
     res.setHeader("Content-Type", a.mimeType || "application/octet-stream");
     res.setHeader(
@@ -359,7 +456,6 @@ export const attachmentMeta = async (req, res) => {
       url: a.url,
       mime: a.mimeType,
       size: a.size,
-      firstDownloadedAt: a.firstDownloadedAt,
       deleteAfter: a.deleteAfter,
     });
   } catch (e) {
