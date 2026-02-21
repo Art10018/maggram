@@ -4,6 +4,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import http from "../api/http";
 import { useAuth } from "../store/auth.jsx";
 
+function sameId(a, b) {
+  if (a === null || a === undefined || b === null || b === undefined) return false;
+  return String(a) === String(b);
+}
+
 const API_ORIGIN = "";
 
 // монолитные фоны (как у тебя сейчас)
@@ -373,7 +378,7 @@ export default function Chats() {
 
   const peer = useMemo(() => {
     if (!selectedChat) return null;
-    return selectedChat.peer || selectedChat.participants?.find((p) => p.id !== me?.id) || null;
+    return selectedChat.peer || selectedChat.participants?.find((p) => !sameId(p.id, me?.id)) || null;
   }, [selectedChat, me?.id]);
 
   const peerTitle = peer?.displayName || peer?.username || "Chat";
@@ -506,7 +511,7 @@ export default function Chats() {
         ) : (
           <>
             {filteredChats.map((c) => {
-              const p = c.peer || c.participants?.find((x) => x.id !== me?.id) || null;
+              const p = c.peer || c.participants?.find((x) => !sameId(x.id, me?.id)) || null;
               const title = p?.displayName || p?.username || "Chat";
               const avatarUrl = p?.avatarUrl || "";
               const last = c.lastMessage?.text || "";
@@ -716,7 +721,7 @@ export default function Chats() {
         ) : (
           <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
             {messages.map((m) => {
-              const mine = m.senderId === me?.id;
+              const mine = sameId(m.senderId, me?.id);
               const time = fmtTime(m.createdAt);
 
               return (
