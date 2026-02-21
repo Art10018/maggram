@@ -167,14 +167,19 @@ export async function resendEmail(req, res) {
 export async function login(req, res) {
   try {
     const { username, email, login, password } = req.body || {};
-    const identifier = login || email || username;
+    const identifier = String(login || email || username || "").trim();
 
     if (!identifier || !password) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
     const user = await prisma.user.findFirst({
-      where: { OR: [{ email: identifier }, { username: identifier }] },
+      where: {
+        OR: [
+          { email: { equals: identifier, mode: "insensitive" } },
+          { username: { equals: identifier, mode: "insensitive" } },
+        ],
+      },
     });
 
     if (!user) {
@@ -192,7 +197,24 @@ export async function login(req, res) {
       }
     }
 
-    const ok = await bcrypt.compare(password, user.password);
+    const passRaw = String(password);
+    const looksHashed = typeof user.password === "string" && user.password.startsWith("$2");
+
+    let ok = false;
+    if (looksHashed) {
+      ok = await bcrypt.compare(passRaw, user.password);
+    } else {
+      // Legacy fallback for old plaintext records. Rehash on successful login.
+      ok = user.password === passRaw;
+      if (ok) {
+        const passwordHash = await bcrypt.hash(passRaw, 10);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { password: passwordHash },
+        });
+      }
+    }
+
     if (!ok) {
       return res.status(400).json({ message: "Invalid credentials" });
     }

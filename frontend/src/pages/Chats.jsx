@@ -14,6 +14,7 @@ const API_ORIGIN = "";
 // монолитные фоны (как у тебя сейчас)
 const ACCENT_BG = "rgba(170, 120, 255, 0.22)";
 const NEUTRAL_BG = "rgba(255,255,255,0.06)";
+const LOGO_PURPLE = "#592BC5";
 
 function useIsMobile(bp = 820) {
   const [m, setM] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= bp : false));
@@ -88,21 +89,18 @@ function DownloadIcon({ size = 18 }) {
 function TapSendIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      {/* стрелка вверх */}
-      <path d="M12 16V4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path
-        d="M8 8L12 4L16 8"
+        d="M4 12h14"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M13 7l5 5-5 5"
+        stroke="currentColor"
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-      {/* нижний лоток */}
-      <path
-        d="M4 14V17C4 19 5 20 7 20H17C19 20 20 19 20 17V14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
       />
     </svg>
   );
@@ -118,6 +116,14 @@ function DownIcon({ size = 18 }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PlusIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -191,9 +197,12 @@ export default function Chats() {
   const [text, setText] = useState("");
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
-  const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0, messageId: null });
+  const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0, messageId: null, mobile: false });
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingMessageText, setEditingMessageText] = useState("");
+  const [touchSelectedMessageId, setTouchSelectedMessageId] = useState(null);
+
+  const longPressTimerRef = useRef(null);
 
   const listRef = useRef(null);
   const msgRef = useRef(null);
@@ -237,14 +246,53 @@ export default function Chats() {
     setShowJump(!atBottom);
   };
 
-  const closeCtxMenu = () => setCtxMenu({ open: false, x: 0, y: 0, messageId: null });
+  const closeCtxMenu = () => {
+    setCtxMenu({ open: false, x: 0, y: 0, messageId: null, mobile: false });
+    setTouchSelectedMessageId(null);
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const openMessageMenu = (messageId, x, y, mobile = false) => {
+    setCtxMenu({ open: true, x, y, messageId, mobile });
+    setTouchSelectedMessageId(messageId);
+  };
+
+  const startLongPress = (e, messageId, mine) => {
+    if (!mine || !isMobile) return;
+    clearLongPressTimer();
+
+    const touch = e.touches?.[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch?.clientX ?? rect.left + rect.width / 2;
+    const y = touch?.clientY ?? rect.top + rect.height / 2;
+
+    longPressTimerRef.current = setTimeout(() => {
+      openMessageMenu(messageId, x, y, true);
+    }, 420);
+  };
+
+  const stopLongPress = () => {
+    clearLongPressTimer();
+  };
 
   useEffect(() => {
     if (!ctxMenu.open) return;
     const onGlobal = () => closeCtxMenu();
     window.addEventListener("click", onGlobal);
-    return () => window.removeEventListener("click", onGlobal);
+    window.addEventListener("resize", onGlobal);
+    return () => {
+      window.removeEventListener("click", onGlobal);
+      window.removeEventListener("resize", onGlobal);
+    };
   }, [ctxMenu.open]);
+
+  useEffect(() => () => clearLongPressTimer(), []);
 
   const filteredChats = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -471,19 +519,19 @@ export default function Chats() {
 
   // ======= panes (как у тебя сейчас в гите) =======
   const ChatsListPane = (
-    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: isMobile ? "rgba(9,9,13,0.65)" : "transparent" }}>
       {/* search */}
-      <div style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ padding: isMobile ? 12 : 14, borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 2, background: "rgba(9,9,13,0.72)", backdropFilter: "blur(10px)" }}>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Поиск"
           style={{
             width: "100%",
-            padding: "10px 12px",
-            borderRadius: 14,
+            padding: "11px 14px",
+            borderRadius: 999,
             border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(0,0,0,0.25)",
+            background: "rgba(255,255,255,0.07)",
             color: "rgba(255,255,255,0.9)",
             outline: "none",
             fontWeight: 700,
@@ -499,7 +547,7 @@ export default function Chats() {
             flex: 1,
             minHeight: 0,
             overflowY: "auto",
-            padding: 14,
+            padding: isMobile ? 8 : 14,
           }}
         >
         {loadingChats ? (
@@ -525,10 +573,10 @@ export default function Chats() {
                   style={{
                     all: "unset",
                     cursor: "pointer",
-                    borderRadius: 14,
+                    borderRadius: 16,
                     border: "1px solid rgba(255,255,255,0.10)",
                     background: active ? ACCENT_BG : NEUTRAL_BG,
-                    padding: 12,
+                    padding: isMobile ? 10 : 12,
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
@@ -582,7 +630,7 @@ export default function Chats() {
   );
 
   const ChatPane = (
-    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
+    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative", paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0, background: isMobile ? "rgba(9,9,13,0.95)" : "transparent" }}>
       {/* header */}
       <div
         style={{
@@ -696,8 +744,8 @@ export default function Chats() {
           minHeight: 0,
           overflowY: "auto",
           overflowX: "hidden",
-          padding: 18,
-          paddingRight: 12,
+          padding: isMobile ? 12 : 18,
+          paddingRight: isMobile ? 8 : 12,
           minWidth: 0,
         }}
       >
@@ -730,14 +778,19 @@ export default function Chats() {
                     onContextMenu={(e) => {
                       if (!mine) return;
                       e.preventDefault();
-                      setCtxMenu({ open: true, x: e.clientX, y: e.clientY, messageId: m.id });
+                      openMessageMenu(m.id, e.clientX, e.clientY, false);
                     }}
+                    onTouchStart={(e) => startLongPress(e, m.id, mine)}
+                    onTouchEnd={stopLongPress}
+                    onTouchMove={stopLongPress}
+                    onTouchCancel={stopLongPress}
                     style={{
-                      maxWidth: "min(520px, 78%)",
-                      borderRadius: 14,
+                      maxWidth: isMobile ? "88%" : "min(520px, 78%)",
+                      borderRadius: 16,
                       padding: "10px 12px",
                       border: "1px solid rgba(255,255,255,0.10)",
                       background: mine ? ACCENT_BG : NEUTRAL_BG,
+                      outline: touchSelectedMessageId === m.id ? "2px solid rgba(255,255,255,0.5)" : "none",
                       color: "rgba(255,255,255,0.92)",
                       boxShadow: "0 10px 26px rgba(0,0,0,0.35)",
                       overflow: "hidden",
@@ -952,11 +1005,14 @@ export default function Chats() {
         <div
           style={{
             position: "fixed",
-            left: ctxMenu.x,
-            top: ctxMenu.y,
-            zIndex: 50,
-            minWidth: 160,
-            borderRadius: 10,
+            left: ctxMenu.mobile ? 12 : ctxMenu.x,
+            right: ctxMenu.mobile ? 12 : "auto",
+            top: ctxMenu.mobile ? "auto" : ctxMenu.y,
+            bottom: ctxMenu.mobile ? `calc(12px + env(safe-area-inset-bottom))` : "auto",
+            transform: ctxMenu.mobile ? "none" : "translate(-6px, -6px)",
+            zIndex: 5000,
+            minWidth: ctxMenu.mobile ? "auto" : 160,
+            borderRadius: 12,
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(20,20,24,0.95)",
             display: "grid",
@@ -1026,24 +1082,26 @@ export default function Chats() {
         onSubmit={onSend}
         className="noX"
         style={{
-          padding: 14,
-          paddingBottom: `calc(14px + env(safe-area-inset-bottom))`,
+          padding: isMobile ? 10 : 14,
+          paddingBottom: `calc(${isMobile ? 10 : 14}px + env(safe-area-inset-bottom))`,
           borderTop: "1px solid rgba(255,255,255,0.08)",
           display: "flex",
           gap: 10,
           alignItems: "center",
           overflowX: "hidden",
           minWidth: 0,
+          background: "rgba(8,8,12,0.35)",
+          backdropFilter: "blur(6px)",
         }}
       >
         <label
           title="Attach"
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
+            width: 40,
+            height: 40,
+            borderRadius: 999,
             border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.08)",
             display: "grid",
             placeItems: "center",
             cursor: "pointer",
@@ -1051,7 +1109,7 @@ export default function Chats() {
             flex: "0 0 auto",
           }}
         >
-          📎
+          <PlusIcon size={18} />
           <input
             type="file"
             multiple
@@ -1067,10 +1125,10 @@ export default function Chats() {
           disabled={!selectedId || sending}
           style={{
             flex: 1,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(0,0,0,0.25)",
+            padding: "11px 16px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.08)",
             color: "rgba(255,255,255,0.9)",
             outline: "none",
             fontWeight: 700,
@@ -1085,12 +1143,12 @@ export default function Chats() {
           aria-label="Send"
           title="Send"
           style={{
-            width: 44,
+            width: 40,
             height: 40,
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(170, 120, 255, 0.25)",
-            color: "rgba(255,255,255,0.92)",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: LOGO_PURPLE,
+            color: "#fff",
             fontWeight: 900,
             cursor: !selectedId || sending ? "not-allowed" : "pointer",
             opacity: !selectedId || sending ? 0.6 : 1,
@@ -1111,9 +1169,20 @@ export default function Chats() {
       {/* Важно: на мобилке показываем либо список, либо чат */}
       {isMobile ? (
         selectedId ? (
-          ChatPane
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 120,
+              background: "radial-gradient(900px 420px at 16% 10%, rgba(130,70,255,0.18), transparent 58%), #0b0b0f",
+            }}
+          >
+            {ChatPane}
+          </div>
         ) : (
-          ChatsListPane
+          <div style={{ height: "100%", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.2)" }}>
+            {ChatsListPane}
+          </div>
         )
       ) : (
         <div style={{ display: "flex", gap: 14, height: "100%", minHeight: 0, overflow: "hidden" }} className="noX">
