@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import http from "../api/http";
+import { useAuth } from "../store/auth.jsx";
 
 const API_ORIGIN = "";
 
@@ -204,6 +205,7 @@ function PhotoGrid({ images }) {
 }
 
 export default function Feed() {
+  const { user: me } = useAuth();
   const [tab, setTab] = useState("forYou");
   const [posts, setPosts] = useState([]);
   const [err, setErr] = useState("");
@@ -215,6 +217,12 @@ export default function Feed() {
   const [commentLoading, setCommentLoading] = useState({});
   const [commentErr, setCommentErr] = useState({});
   const [expanded, setExpanded] = useState({});
+  const [postMenuOpen, setPostMenuOpen] = useState({});
+  const [commentMenuOpen, setCommentMenuOpen] = useState({});
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [editingPostText, setEditingPostText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
 
   const loadPosts = useCallback(async (mode) => {
     setLoading(true);
@@ -242,6 +250,10 @@ export default function Feed() {
   const toggleLikeApi = useCallback((postId) => http.post(`/likes/${postId}`), []);
   const getCommentsApi = useCallback((postId) => http.get(`/comments/${postId}`), []);
   const createCommentApi = useCallback((postId, payload) => http.post(`/comments/${postId}`, payload), []);
+  const updatePostApi = useCallback((postId, payload) => http.patch(`/posts/${postId}`, payload), []);
+  const deletePostApi = useCallback((postId) => http.delete(`/posts/${postId}`), []);
+  const updateCommentApi = useCallback((id, payload) => http.patch(`/comments/item/${id}`, payload), []);
+  const deleteCommentApi = useCallback((id) => http.delete(`/comments/item/${id}`), []);
 
   const onToggleLike = useCallback(async (postId) => {
     try {
@@ -326,6 +338,72 @@ export default function Feed() {
     }
   }, [commentText, createCommentApi]);
 
+  const onDeletePost = useCallback(async (postId) => {
+    if (!window.confirm("Удалить пост?")) return;
+    try {
+      await deletePostApi(postId);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setOpenComments((m) => {
+        const next = { ...m };
+        delete next[postId];
+        return next;
+      });
+      setCommentsByPost((m) => {
+        const next = { ...m };
+        delete next[postId];
+        return next;
+      });
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, [deletePostApi]);
+
+  const onSavePostEdit = useCallback(async (postId) => {
+    const text = editingPostText.trim();
+    if (!text) return;
+    try {
+      const res = await updatePostApi(postId, { code: text });
+      const updated = res.data;
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, code: updated.code } : p)));
+      setEditingPostId(null);
+      setEditingPostText("");
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, [editingPostText, updatePostApi]);
+
+  const onDeleteComment = useCallback(async (postId, commentId) => {
+    if (!window.confirm("Удалить комментарий?")) return;
+    try {
+      await deleteCommentApi(commentId);
+      setCommentsByPost((m) => ({ ...m, [postId]: (m[postId] || []).filter((c) => c.id !== commentId) }));
+      setPosts((prev) => prev.map((p) => {
+        if (p.id !== postId) return p;
+        const cur = p._count?.comments ?? 0;
+        return { ...p, _count: { ...(p._count || {}), comments: Math.max(0, cur - 1) } };
+      }));
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, [deleteCommentApi]);
+
+  const onSaveCommentEdit = useCallback(async (postId, commentId) => {
+    const text = editingCommentText.trim();
+    if (!text) return;
+    try {
+      const res = await updateCommentApi(commentId, { text });
+      const updated = res.data;
+      setCommentsByPost((m) => ({
+        ...m,
+        [postId]: (m[postId] || []).map((c) => (c.id === commentId ? { ...c, text: updated.text } : c)),
+      }));
+      setEditingCommentId(null);
+      setEditingCommentText("");
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }, [editingCommentText, updateCommentApi]);
+
   if (loading) return <div style={{ padding: 16, color: "rgba(255,255,255,0.8)" }}>Loading...</div>;
   if (err) return <div style={{ padding: 16, color: "crimson" }}>{err}</div>;
 
@@ -357,6 +435,7 @@ export default function Feed() {
                 const isExpanded = !!expanded[p.id];
                 const shownText = isExpanded || !isLong ? fullText : fullText.slice(0, 220).trimEnd() + "…";
                 const when = timeAgo(p.createdAt);
+                const isMyPost = (p.author?.id || p.authorId) === me?.id;
 
                 return (
                   <div
@@ -368,7 +447,8 @@ export default function Feed() {
                       padding: 14,
                     }}
                   >
-                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                       <Avatar username={p.author?.username} avatarUrl={p.author?.avatarUrl} size={44} />
 
                       <div style={{ display: "grid", gap: 2 }}>
@@ -390,6 +470,25 @@ export default function Feed() {
                           </div>
                         )}
                       </div>
+                      </div>
+
+                      {isMyPost ? (
+                        <div style={{ position: "relative" }}>
+                          <button
+                            onClick={() => setPostMenuOpen((m) => ({ ...m, [p.id]: !m[p.id] }))}
+                            style={{ border: 0, background: "transparent", color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: 20 }}
+                            title="Меню"
+                          >
+                            ⋯
+                          </button>
+                          {postMenuOpen[p.id] ? (
+                            <div style={{ position: "absolute", right: 0, top: 26, zIndex: 5, minWidth: 150, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(20,20,24,0.95)", display: "grid" }}>
+                              <button onClick={() => { setEditingPostId(p.id); setEditingPostText(p.code || ""); setPostMenuOpen((m) => ({ ...m, [p.id]: false })); }} style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "white", fontWeight: 700 }}>Редактировать</button>
+                              <button onClick={() => { setPostMenuOpen((m) => ({ ...m, [p.id]: false })); onDeletePost(p.id); }} style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "#ff8f8f", fontWeight: 700 }}>Удалить</button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
 
                     {imgs.length > 0 ? (
@@ -398,7 +497,15 @@ export default function Feed() {
                       </div>
                     ) : null}
 
-                    {fullText ? (
+                    {editingPostId === p.id ? (
+                      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        <textarea value={editingPostText} onChange={(e) => setEditingPostText(e.target.value)} rows={5} style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.25)", color: "white", padding: 10 }} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => onSavePostEdit(p.id)} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)", color: "white", padding: "8px 12px", cursor: "pointer" }}>Сохранить</button>
+                          <button onClick={() => { setEditingPostId(null); setEditingPostText(""); }} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.8)", padding: "8px 12px", cursor: "pointer" }}>Отмена</button>
+                        </div>
+                      </div>
+                    ) : fullText ? (
                       <div style={{ marginTop: 10 }}>
                         <pre
                           style={{
@@ -487,17 +594,42 @@ export default function Feed() {
                           <div style={{ color: "rgba(255,255,255,0.7)" }}>No comments</div>
                         ) : (
                           <div style={{ display: "grid", gap: 10 }}>
-                            {commList.map((c) => (
+                            {commList.map((c) => {
+                              const isMyComment = c.author?.id === me?.id;
+                              return (
                               <div key={c.id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                                 <Avatar username={c.author?.username} avatarUrl={c.author?.avatarUrl} size={34} />
-                                <div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                                   <div style={{ fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>
                                     {c.author?.username ?? "unknown"}
                                   </div>
-                                  <div style={{ whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.86)" }}>{c.text}</div>
+                                    {isMyComment ? (
+                                      <div style={{ position: "relative" }}>
+                                        <button onClick={() => setCommentMenuOpen((m) => ({ ...m, [c.id]: !m[c.id] }))} style={{ border: 0, background: "transparent", color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: 18 }}>⋯</button>
+                                        {commentMenuOpen[c.id] ? (
+                                          <div style={{ position: "absolute", right: 0, top: 22, zIndex: 5, minWidth: 140, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(20,20,24,0.95)", display: "grid" }}>
+                                            <button onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text || ""); setCommentMenuOpen((m) => ({ ...m, [c.id]: false })); }} style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "white", fontWeight: 700 }}>Редактировать</button>
+                                            <button onClick={() => { setCommentMenuOpen((m) => ({ ...m, [c.id]: false })); onDeleteComment(p.id, c.id); }} style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "#ff8f8f", fontWeight: 700 }}>Удалить</button>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  {editingCommentId === c.id ? (
+                                    <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
+                                      <textarea value={editingCommentText} onChange={(e) => setEditingCommentText(e.target.value)} rows={3} style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.25)", color: "white", padding: 8 }} />
+                                      <div style={{ display: "flex", gap: 8 }}>
+                                        <button onClick={() => onSaveCommentEdit(p.id, c.id)} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)", color: "white", padding: "6px 10px", cursor: "pointer" }}>Сохранить</button>
+                                        <button onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.8)", padding: "6px 10px", cursor: "pointer" }}>Отмена</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.86)" }}>{c.text}</div>
+                                  )}
                                 </div>
                               </div>
-                            ))}
+                            )})}
                           </div>
                         )}
                       </div>

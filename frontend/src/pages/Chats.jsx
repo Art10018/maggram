@@ -186,6 +186,9 @@ export default function Chats() {
   const [text, setText] = useState("");
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState({ open: false, x: 0, y: 0, messageId: null });
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
 
   const listRef = useRef(null);
   const msgRef = useRef(null);
@@ -228,6 +231,15 @@ export default function Chats() {
     atBottomRef.current = atBottom;
     setShowJump(!atBottom);
   };
+
+  const closeCtxMenu = () => setCtxMenu({ open: false, x: 0, y: 0, messageId: null });
+
+  useEffect(() => {
+    if (!ctxMenu.open) return;
+    const onGlobal = () => closeCtxMenu();
+    window.addEventListener("click", onGlobal);
+    return () => window.removeEventListener("click", onGlobal);
+  }, [ctxMenu.open]);
 
   const filteredChats = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -412,6 +424,35 @@ export default function Chats() {
       alert(e2?.response?.data?.error || e2?.response?.data?.message || e2.message);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function onDeleteMessage(messageId) {
+    if (!messageId) return;
+    if (!window.confirm("Удалить сообщение?")) return;
+    try {
+      await http.delete(`/chats/messages/${messageId}`);
+      setMessages((prev) => (prev || []).filter((m) => m.id !== messageId));
+      closeCtxMenu();
+      fetchChats({ silent: true });
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
+    }
+  }
+
+  async function onSaveMessageEdit(messageId) {
+    const text2 = editingMessageText.trim();
+    if (!messageId || !text2) return;
+    try {
+      const res = await http.patch(`/chats/messages/${messageId}`, { text: text2 });
+      const updated = res.data;
+      setMessages((prev) => (prev || []).map((m) => (m.id === messageId ? { ...m, text: updated.text } : m)));
+      setEditingMessageId(null);
+      setEditingMessageText("");
+      closeCtxMenu();
+      fetchChats({ silent: true });
+    } catch (e) {
+      alert(e?.response?.data?.error || e?.response?.data?.message || e.message);
     }
   }
 
@@ -681,6 +722,11 @@ export default function Chats() {
               return (
                 <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", minWidth: 0 }}>
                   <div
+                    onContextMenu={(e) => {
+                      if (!mine) return;
+                      e.preventDefault();
+                      setCtxMenu({ open: true, x: e.clientX, y: e.clientY, messageId: m.id });
+                    }}
                     style={{
                       maxWidth: "min(520px, 78%)",
                       borderRadius: 14,
@@ -695,7 +741,20 @@ export default function Chats() {
                       overflowWrap: "anywhere",
                     }}
                   >
-                    {m.text ? (
+                    {editingMessageId === m.id ? (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <textarea
+                          value={editingMessageText}
+                          onChange={(e) => setEditingMessageText(e.target.value)}
+                          rows={3}
+                          style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.2)", color: "white", padding: 8 }}
+                        />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => onSaveMessageEdit(m.id)} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)", color: "white", padding: "6px 10px", cursor: "pointer" }}>Сохранить</button>
+                          <button onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} style={{ borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.8)", padding: "6px 10px", cursor: "pointer" }}>Отмена</button>
+                        </div>
+                      </div>
+                    ) : m.text ? (
                       <div style={{ whiteSpace: "pre-wrap", fontWeight: 700, lineHeight: 1.35 }}>{m.text}</div>
                     ) : null}
 
@@ -883,6 +942,48 @@ export default function Chats() {
           </div>
         )}
       </div>
+
+      {ctxMenu.open ? (
+        <div
+          style={{
+            position: "fixed",
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            zIndex: 50,
+            minWidth: 160,
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(20,20,24,0.95)",
+            display: "grid",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.4)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              const msg = messages.find((x) => x.id === ctxMenu.messageId);
+              if (!msg) return;
+              if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+                alert("Сообщения с файлами пока нельзя редактировать");
+                closeCtxMenu();
+                return;
+              }
+              setEditingMessageId(msg.id);
+              setEditingMessageText(msg.text || "");
+              closeCtxMenu();
+            }}
+            style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "white", fontWeight: 700 }}
+          >
+            Редактировать
+          </button>
+          <button
+            onClick={() => onDeleteMessage(ctxMenu.messageId)}
+            style={{ all: "unset", cursor: "pointer", padding: "10px 12px", color: "#ff8f8f", fontWeight: 700 }}
+          >
+            Удалить
+          </button>
+        </div>
+      ) : null}
 
       {/* кнопка “вниз” (появляется если ты не внизу) */}
       {selectedId && showJump ? (
