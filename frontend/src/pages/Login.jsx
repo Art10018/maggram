@@ -35,15 +35,23 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await loginApi({ login: l, password: p });
-      const token = res.data?.token;
-      const user = res.data?.user;
+      const res = await loginApi(l, p);
+      const token = res?.token;
+      const user = res?.user;
 
       if (!token || !user) throw new Error("Login response missing token/user");
 
       doLogin(token, user);
       nav("/", { replace: true });
     } catch (e2) {
+      const needsVerification = !!e2?.response?.data?.needsVerification;
+      const verifyEmail = e2?.response?.data?.email || (l.includes("@") ? l : "");
+
+      if (needsVerification && verifyEmail) {
+        nav("/verify-email", { state: { email: verifyEmail } });
+        return;
+      }
+
       setErr(e2?.response?.data?.error || e2?.response?.data?.message || e2.message);
     } finally {
       setLoading(false);

@@ -22,6 +22,14 @@ function getEnforceAfterDate() {
   return d;
 }
 
+function normalizeIdentifier(value) {
+  return String(value || "").trim();
+}
+
+function isEmailLike(value) {
+  return value.includes("@");
+}
+
 // POST /api/auth/register
 export async function register(req, res) {
   try {
@@ -166,18 +174,38 @@ export async function resendEmail(req, res) {
 // POST /api/auth/login
 export async function login(req, res) {
   try {
-    const { username, email, password } = req.body || {};
-    const identifier = email || username;
+    const { username, email, login, password } = req.body || {};
+    const rawIdentifier = login || email || username;
+    const identifier = normalizeIdentifier(rawIdentifier);
 
     if (!identifier || !password) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
+    const userLookup = isEmailLike(identifier)
+      ? { email: { equals: identifier.toLowerCase(), mode: "insensitive" } }
+      : { username: { equals: identifier, mode: "insensitive" } };
+
     const user = await prisma.user.findFirst({
-      where: { OR: [{ email: identifier }, { username: identifier }] },
+      where: userLookup,
     });
 
     if (!user) {
+      const pending = await prisma.pendingUser.findFirst({
+        where: isEmailLike(identifier)
+          ? { email: { equals: identifier.toLowerCase(), mode: "insensitive" } }
+          : { username: { equals: identifier, mode: "insensitive" } },
+        select: { email: true },
+      });
+
+      if (pending) {
+        return res.status(403).json({
+          message: "Email not verified",
+          needsVerification: true,
+          email: pending.email,
+        });
+      }
+
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
@@ -194,7 +222,12 @@ export async function login(req, res) {
 
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      if (user.password === password) {
+        const newHash = await bcrypt.hash(password, 10);
+        await prisma.user.update({ where: { id: user.id }, data: { password: newHash } });
+      } else {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
     }
 
     const token = signToken(user.id);

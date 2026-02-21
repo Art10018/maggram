@@ -6,6 +6,8 @@ import { avatarUpload } from "../middleware/avatarUpload.middleware.js";
 import {
   getUserById,
   getUserPostsById,
+  getUserFollowers,
+  getUserFollowing,
   updateMyProfile,
   updateMyCredentials,
   uploadMyAvatar,
@@ -23,5 +25,7 @@ router.get("/:id", getUserById);
 
 // посты пользователя (с фотками + likedByMe)
 router.get("/:id/posts", optionalAuth, getUserPostsById);
+router.get("/:id/followers", optionalAuth, getUserFollowers);
+router.get("/:id/following", optionalAuth, getUserFollowing);
 
 export default router;

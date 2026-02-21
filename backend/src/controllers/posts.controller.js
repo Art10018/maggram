@@ -103,3 +103,58 @@ export const createPost = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
+
+// PATCH /api/posts/:id
+export const updateMyPost = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const postId = req.params.id;
+    const code = (req.body?.code ?? "").toString().trim();
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, authorId: true },
+    });
+
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (post.authorId !== userId) return res.status(403).json({ error: "No access" });
+    if (!code) return res.status(400).json({ error: "code is required" });
+
+    const updated = await prisma.post.update({
+      where: { id: postId },
+      data: { code },
+      include: {
+        author: { select: { id: true, username: true, avatarUrl: true } },
+        images: { select: { id: true, url: true } },
+        _count: { select: { likes: true, comments: true } },
+      },
+    });
+
+    return res.json({ ...updated, likedByMe: false });
+  } catch (e) {
+    console.error("updateMyPost error:", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+// DELETE /api/posts/:id
+export const deleteMyPost = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const postId = req.params.id;
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, authorId: true },
+    });
+
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (post.authorId !== userId) return res.status(403).json({ error: "No access" });
+
+    await prisma.post.delete({ where: { id: postId } });
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("deleteMyPost error:", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
