@@ -166,8 +166,8 @@ export async function resendEmail(req, res) {
 // POST /api/auth/login
 export async function login(req, res) {
   try {
-    const { username, email, password } = req.body || {};
-    const identifier = email || username;
+    const { username, email, login, password } = req.body || {};
+    const identifier = login || email || username;
 
     if (!identifier || !password) {
       return res.status(400).json({ message: "Missing fields" });
