@@ -99,6 +99,98 @@ export const getUserPostsById = async (req, res) => {
   }
 };
 
+
+
+// ==========================
+// GET USER FOLLOWERS
+// GET /api/users/:id/followers
+// ==========================
+export const getUserFollowers = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const viewerId = req.user?.id || null;
+
+    const follows = await prisma.follow.findMany({
+      where: { followingId: id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        follower: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true },
+        },
+      },
+    });
+
+    const ids = follows.map((f) => f.follower?.id).filter(Boolean);
+    let followedByMe = new Set();
+
+    if (viewerId && ids.length > 0) {
+      const mine = await prisma.follow.findMany({
+        where: { followerId: viewerId, followingId: { in: ids } },
+        select: { followingId: true },
+      });
+      followedByMe = new Set(mine.map((x) => x.followingId));
+    }
+
+    return res.json(
+      follows
+        .map((f) => f.follower)
+        .filter(Boolean)
+        .map((u) => ({
+          ...u,
+          followedByMe: viewerId ? followedByMe.has(u.id) : false,
+        }))
+    );
+  } catch (e) {
+    console.error("getUserFollowers error:", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==========================
+// GET USER FOLLOWING
+// GET /api/users/:id/following
+// ==========================
+export const getUserFollowing = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const viewerId = req.user?.id || null;
+
+    const follows = await prisma.follow.findMany({
+      where: { followerId: id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        following: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true },
+        },
+      },
+    });
+
+    const ids = follows.map((f) => f.following?.id).filter(Boolean);
+    let followedByMe = new Set();
+
+    if (viewerId && ids.length > 0) {
+      const mine = await prisma.follow.findMany({
+        where: { followerId: viewerId, followingId: { in: ids } },
+        select: { followingId: true },
+      });
+      followedByMe = new Set(mine.map((x) => x.followingId));
+    }
+
+    return res.json(
+      follows
+        .map((f) => f.following)
+        .filter(Boolean)
+        .map((u) => ({
+          ...u,
+          followedByMe: viewerId ? followedByMe.has(u.id) : false,
+        }))
+    );
+  } catch (e) {
+    console.error("getUserFollowing error:", e);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 // ==========================
 // UPDATE MY PROFILE
 // PATCH /api/users/me/profile
